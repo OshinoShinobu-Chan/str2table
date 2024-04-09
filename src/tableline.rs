@@ -84,6 +84,17 @@ impl Tableline {
         Ok(s)
     }
 
+    /// convert a tableline to string with given seperation char
+    pub fn to_string_format(&self, seperation: char) -> String {
+        let mut s = String::new();
+        for cell in self.0.iter() {
+            s.push_str(cell.to_string().as_str());
+            s.push(seperation);
+            s.push(' ');
+        }
+        s
+    }
+
     /// Push one cell to the end of line
     pub fn push_cell(&mut self, cell: Tablecell) {
         self.0.push(cell);

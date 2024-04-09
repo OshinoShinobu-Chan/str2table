@@ -1,5 +1,6 @@
 //! # Table
 //! Include a vector of tablelines, representing a table.
+use crate::export::Export;
 use crate::tablecell::Tablecell;
 use crate::tableline::Tableline;
 
@@ -156,6 +157,33 @@ impl Table {
     }
 }
 
+/* --------------------------------- Export --------------------------------- */
+
+impl Export for Table {
+    fn to_console(&self) {
+        println!("{}", self);
+    }
+
+    fn to_txt(&self, file: &str, seperation: char) -> Result<(), String> {
+        let mut s = String::new();
+        for line in self.0.iter() {
+            s.push_str(line.to_string_format(seperation).as_str());
+            s.push('\n');
+        }
+        std::fs::write(file, s).map_err(|err| err.to_string())
+    }
+
+    fn to_csv(&self, _file: &str) -> Result<(), String> {
+        // TODO
+        Ok(())
+    }
+
+    fn to_excel(&self, _file: &str) -> Result<(), String> {
+        // TODO
+        Ok(())
+    }
+}
+
 /* --------------------------------- Display -------------------------------- */
 /// Generate parallel line of a cell with given width, start with +, but not end with +
 fn generate_parallel_line(width: usize) -> String {
@@ -250,6 +278,29 @@ mod tests {
     #[test]
     fn test_from_string_simple() {
         let s = "1,2223,3\n4,5,6\n7,8,9".to_string();
+        let table = Table::from_string(s, ',');
+        println!("{:?}", table);
+        assert_eq!(table.len(), 3);
+        assert_eq!(table.get_line(0).unwrap().len(), 3);
+        assert_eq!(table.get_line(1).unwrap().len(), 3);
+        assert_eq!(table.get_line(2).unwrap().len(), 3);
+        assert_eq!(table.get_cell((0, 0)).unwrap().to_string(), "1");
+        assert_eq!(table.get_cell((0, 1)).unwrap().to_string(), "2223");
+        assert_eq!(table.get_cell((0, 2)).unwrap().to_string(), "3");
+        assert_eq!(table.get_cell((1, 0)).unwrap().to_string(), "4");
+        assert_eq!(table.get_cell((1, 1)).unwrap().to_string(), "5");
+        assert_eq!(table.get_cell((1, 2)).unwrap().to_string(), "6");
+        assert_eq!(table.get_cell((2, 0)).unwrap().to_string(), "7");
+        assert_eq!(table.get_cell((2, 1)).unwrap().to_string(), "8");
+        assert_eq!(table.get_cell((2, 2)).unwrap().to_string(), "9");
+    }
+
+    #[test]
+    fn test_to_txt() {
+        let s = "1,2223,3\n4,5,6\n7,8,9".to_string();
+        let table = Table::from_string(s, ',');
+        table.to_txt("test.txt", ',').unwrap();
+        let s = std::fs::read_to_string("test.txt").unwrap();
         let table = Table::from_string(s, ',');
         println!("{:?}", table);
         assert_eq!(table.len(), 3);
