@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(output, "123.45678901234568<f64>");
         let v = Tablecell::auto_from("Hello, world!".to_string());
         let output = format!("{:?}", v);
-        assert_eq!(output, "Hello, world!<string>");
+        assert_eq!(output, "Hello, world!<str>");
     }
 
     #[test]
@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(output, "1<f32>");
         let v = Tablecell::auto_from("10_0".to_string());
         let output = format!("{:?}", v);
-        assert_eq!(output, "10_0<string>");
+        assert_eq!(output, "10_0<str>");
     }
 
     #[test]

@@ -235,10 +235,10 @@ mod tests {
         let s = "  a  |  123.456 |  100  ".to_string();
         let line = Tableline::from_string(s, '|');
         let output = format!("{:?}", line);
-        assert_eq!(output, "| a<string> | 123.456<f32> | 100<u8> | ");
+        assert_eq!(output, "| a<str> | 123.456<f32> | 100<u8> | ");
         let s = "  a  |  123.456 |  100  |   |".to_string();
         let line = Tableline::from_string(s, '|');
         let output = format!("{:?}", line);
-        assert_eq!(output, "| a<string> | 123.456<f32> | 100<u8> | ");
+        assert_eq!(output, "| a<str> | 123.456<f32> | 100<u8> | ");
     }
 }

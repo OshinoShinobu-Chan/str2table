@@ -132,7 +132,7 @@ impl Table {
 
     /// Get subtable from the table
     pub fn get_subtable(
-        &self,
+        self,
         (start_row, start_col): (usize, usize),
         (end_row, end_col): (usize, usize),
     ) -> Option<Table> {
@@ -174,12 +174,12 @@ impl Export for Table {
     }
 
     fn to_csv(&self, _file: &str) -> Result<(), String> {
-        // TODO
+        //TODO
         Ok(())
     }
 
-    fn to_excel(&self, _file: &str) -> Result<(), String> {
-        // TODO
+    fn to_excel(&self, file: &str, sheet: &str) -> Result<(), String> {
+        //TODO
         Ok(())
     }
 }
