@@ -29,7 +29,7 @@
 //! - `-o`/`--output`: Set the path of file to export the table, enable when export mode is not console.
 //! Infer the format by the suffix of the file, support `csv`, `txt`, `exls`.
 //! - `-ec`/`--export-color`: Set the color of the table by line, enable when export mode is console
-//! Use number or range end with `l/x` and with color, default is black.
+//! Use number or range end with `l/c` and with color, default is black.
 //! `r` represents red, `g` represents green, `b` represents blue, `y` represents yellow, `x` represents grey
 //! `w` represents white.
 //! Follow the line color first if conflict.
@@ -43,12 +43,12 @@
 //!
 //! ### Example
 //! ```bash
-//! str2table -s '#' -pm s -fp 1-2li,4f -ecl 1r,2g,3b -es 1-3l,1-3c
+//! str2table -s '#' -pm s -fp 1-2li,4f -ecl 1lr,2lg,3cb -es 1-3l,1-3c
 //! ```
 //! This command means, read a table from console with `#` as seperation char,
 //! parse the table to string, force the first two lines to be integer, and fourth lines to be float
 //! export the table to concole`, set the color
-//! of the first line to red, the second line to green, the third line to blue,
+//! of the first line to red, the second line to green, the third column to blue,
 //! export the subtable of the first three lines and the first three columns.
 //!
 //! ## Configuration File
@@ -235,13 +235,16 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
             // parse end of range
             let end: usize;
             let t: ForceType;
-            let last: char = range[1].chars().last().unwrap();
-            let second_last: char = range[1].chars().nth(range[1].len() - 2).unwrap();
+            let last = range[1].chars().last();
+            if range[1].len() < 2 {
+                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
+            }
+            let second_last = range[1].chars().nth(range[1].len() - 2);
             // show if the lc is included in this part
             let mut lc_flag = true;
 
             match second_last {
-                'l' => {
+                Some('l') => {
                     if let Some(lc) = lc {
                         if lc == LineColumn::Column {
                             return Err(format!(
@@ -253,7 +256,7 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
                         lc = Some(LineColumn::Line);
                     }
                 }
-                'c' => {
+                Some('c') => {
                     if let Some(lc) = lc {
                         if lc == LineColumn::Line {
                             return Err(format!(
@@ -269,10 +272,10 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
             }
 
             match last {
-                's' => t = ForceType::S,
-                'u' => t = ForceType::U,
-                'i' => t = ForceType::I,
-                'f' => t = ForceType::F,
+                Some('s') => t = ForceType::S,
+                Some('u') => t = ForceType::U,
+                Some('i') => t = ForceType::I,
+                Some('f') => t = ForceType::F,
                 _ => {
                     return Err(format!(
                         "'\x1b[1;31m{}\x1b[0m' should end with type 's', 'u', 'i' or 'f'",
@@ -316,12 +319,15 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
             // part is a number
             let num: usize;
             let t: ForceType;
-            let last: char = part.chars().last().unwrap();
-            let second_last: char = part.chars().nth(part.len() - 2).unwrap();
+            let last = part.chars().last();
+            if part.len() < 2 {
+                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
+            }
+            let second_last = part.chars().nth(part.len() - 2);
             let mut lc_flag = true;
 
             match second_last {
-                'l' => {
+                Some('l') => {
                     if let Some(lc) = lc {
                         if lc == LineColumn::Column {
                             return Err(format!(
@@ -333,7 +339,7 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
                         lc = Some(LineColumn::Line);
                     }
                 }
-                'c' => {
+                Some('c') => {
                     if let Some(lc) = lc {
                         if lc == LineColumn::Line {
                             return Err(format!(
@@ -349,10 +355,10 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
             }
 
             match last {
-                's' => t = ForceType::S,
-                'u' => t = ForceType::U,
-                'i' => t = ForceType::I,
-                'f' => t = ForceType::F,
+                Some('s') => t = ForceType::S,
+                Some('u') => t = ForceType::U,
+                Some('i') => t = ForceType::I,
+                Some('f') => t = ForceType::F,
                 _ => {
                     return Err(format!(
                         "'\x1b[1;31m{}\x1b[0m' should end with type 's', 'u', 'i' or 'f'",
@@ -423,9 +429,155 @@ fn validate_output(s: &str) -> Result<(String, OutputFormat), String> {
 fn validate_export_color(
     s: &str,
 ) -> Result<(Vec<(usize, OutputColor)>, Vec<(usize, OutputColor)>), String> {
-    // TODO
-    println!("{:?}", s);
-    Ok((Vec::new(), Vec::new()))
+    let parts = s.split(',');
+    let mut line: Vec<(usize, OutputColor)> = Vec::new();
+    let mut column: Vec<(usize, OutputColor)> = Vec::new();
+    for part in parts {
+        // if part is a range
+        if part.contains('-') {
+            let range = part.split('-').collect::<Vec<&str>>();
+            // parse start of range
+            let start: usize;
+            match range[0].parse::<usize>() {
+                Ok(n) => start = n,
+                Err(e) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' has {}",
+                        range[0],
+                        e.to_string()
+                    ))
+                }
+            }
+
+            // parse end of range
+            let end: usize;
+            let color: OutputColor;
+
+            if range[1].len() <= 2 {
+                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
+            }
+
+            let last = range[1].chars().last();
+            let second_last = range[1].chars().nth(range[1].len() - 2);
+            let is_line: bool;
+
+            match second_last {
+                Some('l') => is_line = true,
+                Some('c') => is_line = false,
+                Some(_) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
+                        range[1]
+                    ))
+                }
+                None => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
+                        range[1]
+                    ))
+                }
+            }
+
+            match last {
+                Some('r') => color = OutputColor::Red,
+                Some('g') => color = OutputColor::Green,
+                Some('b') => color = OutputColor::Blue,
+                Some('y') => color = OutputColor::Yellow,
+                Some('x') => color = OutputColor::Grey,
+                Some('w') => color = OutputColor::White,
+                _ => return Err(format!(
+                    "'\x1b[1;31m{}\x1b[0m' should end with color 'r', 'g', 'b', 'y', 'x' or 'w'",
+                    range[1]
+                )),
+            }
+
+            match range[1][..range[1].len() - 2].parse::<usize>() {
+                Ok(n) => end = n,
+                Err(e) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' has {}",
+                        range[1],
+                        e.to_string()
+                    ))
+                }
+            }
+
+            if start > end {
+                return Err(format!(
+                    "Start of range (\x1b[1;31m{}\x1b[0m) should be less than end (\x1b[1;31m{}\x1b[0m)",
+                    start,
+                    end,
+                ));
+            }
+
+            // put the result to vec
+            if is_line {
+                for i in start..=end {
+                    line.push((i, color));
+                }
+            } else {
+                for i in start..=end {
+                    column.push((i, color));
+                }
+            }
+        } else {
+            // part is a number
+            let num: usize;
+            let color: OutputColor;
+            if part.len() <= 2 {
+                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
+            }
+            let last = part.chars().last();
+            let second_last = part.chars().nth(part.len() - 2);
+            let is_line: bool;
+
+            match second_last {
+                Some('l') => is_line = true,
+                Some('c') => is_line = false,
+                Some(_) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
+                        part
+                    ))
+                }
+                None => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
+                        part
+                    ))
+                }
+            }
+
+            match last {
+                Some('r') => color = OutputColor::Red,
+                Some('g') => color = OutputColor::Green,
+                Some('b') => color = OutputColor::Blue,
+                Some('y') => color = OutputColor::Yellow,
+                Some('x') => color = OutputColor::Grey,
+                Some('w') => color = OutputColor::White,
+                _ => return Err(format!(
+                    "'\x1b[1;31m{}\x1b[0m' should end with color 'r', 'g', 'b', 'y', 'x' or 'w'",
+                    part
+                )),
+            }
+
+            match part[..part.len() - 2].parse::<usize>() {
+                Ok(n) => num = n,
+                Err(e) => return Err(format!("'\x1b[1;31m{}\x1b[0m' has {}", part, e.to_string())),
+            }
+
+            // put the result to vec
+            if is_line {
+                line.push((num, color));
+            } else {
+                column.push((num, color));
+            }
+        }
+    }
+    // sort the lines and columns by number
+    line.sort_by(|a, b| a.0.cmp(&b.0));
+    column.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok((line, column))
 }
 
 fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), String> {
