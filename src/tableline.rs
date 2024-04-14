@@ -51,11 +51,11 @@ impl Tableline {
         let mut s = String::new();
         s.push_str("\x1b[90m|\x1b[0m ");
         for (i, cell) in self.0.iter().enumerate() {
-            if widths[i] < cell.to_string().len() {
+            if widths[i] < cell.len() {
                 return Err("Width too small");
             }
             s.push_str(format!("{}", cell).as_str());
-            s.push_str(" ".repeat(widths[i] - cell.to_string().len()).as_str());
+            s.push_str(" ".repeat(widths[i] - cell.len()).as_str());
             s.push_str(" \x1b[90m|\x1b[0m ");
         }
         for i in self.0.len()..widths.len() {
@@ -175,24 +175,6 @@ impl Tableline {
         }
         Some(&mut self.0[start..=end])
     }
-
-    // /// Get the widest cell in the line, for display
-    // pub fn get_widest_display(&self) -> usize {
-    //     self.0
-    //         .iter()
-    //         .map(|cell| format!("{}", cell).len())
-    //         .max()
-    //         .unwrap_or(0)
-    // }
-
-    // /// Get the widest cell in the line, for debug
-    // pub fn get_widest_debug(&self) -> usize {
-    //     self.0
-    //         .iter()
-    //         .map(|cell| format!("{:?}", cell).len())
-    //         .max()
-    //         .unwrap_or(0)
-    // }
 }
 
 /* --------------------------------- Display -------------------------------- */

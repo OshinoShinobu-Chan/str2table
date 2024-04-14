@@ -154,6 +154,12 @@ impl Tablecell {
     pub fn set_color(&mut self, color: OutputColor) {
         self.color = color;
     }
+
+    /// Get the length without counting the escape code for color
+    pub fn len(&self) -> usize {
+        println!("{}", self.core.to_string().len());
+        self.core.to_string().chars().count()
+    }
 }
 
 /* --------------------------------- Display -------------------------------- */

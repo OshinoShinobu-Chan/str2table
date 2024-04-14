@@ -1,6 +1,7 @@
 //! # Table
 //! Include a vector of tablelines, representing a table.
 use crate::export::Export;
+use crate::setting::OutputColor;
 use crate::tablecell::Tablecell;
 use crate::tableline::Tableline;
 
@@ -155,6 +156,25 @@ impl Table {
     pub fn get_longest_row(&self) -> usize {
         self.0.iter().map(|line| line.len()).max().unwrap_or(0)
     }
+
+    /// Set the color of a line
+    pub fn set_color_line(&mut self, index: usize, color: OutputColor) {
+        if index >= self.0.len() {
+            return;
+        }
+        for i in 0..self.0[index].len() {
+            self.0[index].get_cell_mut(i).unwrap().set_color(color);
+        }
+    }
+
+    /// Set the color of a column
+    pub fn set_color_column(&mut self, index: usize, color: OutputColor) {
+        for i in 0..self.0.len() {
+            if let Some(cell) = self.0[i].get_cell_mut(index) {
+                cell.set_color(color);
+            }
+        }
+    }
 }
 
 /* --------------------------------- Export --------------------------------- */
@@ -204,11 +224,7 @@ impl std::fmt::Display for Table {
             .map(|col| {
                 self.0
                     .iter()
-                    .map(|line| {
-                        line.get_cell(col)
-                            .map(|cell| format!("{}", cell).len())
-                            .unwrap_or(0)
-                    })
+                    .map(|line| line.get_cell(col).map(|cell| cell.len()).unwrap_or(0))
                     .max()
                     .unwrap_or(0)
             })
