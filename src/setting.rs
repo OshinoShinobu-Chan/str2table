@@ -403,9 +403,21 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
 }
 
 fn validate_output(s: &str) -> Result<(String, OutputFormat), String> {
-    // TODO
-    println!("{:?}", s);
-    Ok((s.to_string(), OutputFormat::Csv))
+    // Get the file format from suffix
+    let parts: Vec<&str> = s.split('.').collect();
+    let format = match parts[parts.len() - 1] {
+        "csv" => OutputFormat::Csv,
+        "txt" => OutputFormat::Txt,
+        "exls" => OutputFormat::Exls,
+        _ => {
+            return Err(format!(
+                "Unsupported file format '\x1b[1;31m{}\x1b[0m'",
+                parts[parts.len() - 1]
+            ))
+        }
+    };
+
+    Ok((s.to_string(), format))
 }
 
 fn validate_export_color(
