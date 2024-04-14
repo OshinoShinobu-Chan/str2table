@@ -16,7 +16,7 @@ impl Table {
     }
 
     /// Parse a string to a table, assuming the string has '\n' as line seperator
-    pub fn from_string(s: String, seperation: char) -> Table {
+    pub fn from_string(s: String, seperation: &str) -> Table {
         let mut lines: Vec<Tableline> = s
             .split('\n')
             .map(|line| Tableline::from_string(line.to_string(), seperation))

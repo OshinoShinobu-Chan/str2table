@@ -20,7 +20,7 @@ impl Tableline {
     /// ignore the blank at start, end and around the seperation char
     ///
     /// empty cells will also be ignored
-    pub fn from_string(s: String, seperation: char) -> Tableline {
+    pub fn from_string(s: String, seperation: &str) -> Tableline {
         let s = s.as_str().trim();
         let cells: Vec<Tablecell> = s
             .split(seperation)

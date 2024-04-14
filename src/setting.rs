@@ -154,7 +154,8 @@ enum OutputFormat {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum OutputColor {
+pub enum OutputColor {
+    Black,
     Red,
     Green,
     Blue,
@@ -163,44 +164,64 @@ enum OutputColor {
     White,
 }
 
+impl std::fmt::Display for OutputColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputColor::Black => write!(f, "Black"),
+            OutputColor::Red => write!(f, "Red"),
+            OutputColor::Green => write!(f, "Green"),
+            OutputColor::Blue => write!(f, "Blue"),
+            OutputColor::Yellow => write!(f, "Yellow"),
+            OutputColor::Grey => write!(f, "Grey"),
+            OutputColor::White => write!(f, "White"),
+        }
+    }
+}
+
+impl Default for OutputColor {
+    fn default() -> Self {
+        OutputColor::Black
+    }
+}
+
 /// Commandline args
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     #[arg(short, long, value_hint = clap::ValueHint::FilePath)]
     /// The path of input file, use console input if not set
-    input: Option<std::path::PathBuf>,
+    pub input: Option<std::path::PathBuf>,
 
     #[arg(short, long, default_value = " ")]
-    seperation: String,
+    pub seperation: String,
 
     #[arg(short, long, default_value = "a", value_enum)]
-    parse_mode: ParseMode,
+    pub parse_mode: ParseMode,
 
     #[arg(short, long, value_parser = validate_force_parse)]
     /// Give the lines or columns with specific type.
-    force_parse: Option<(Vec<(usize, ForceType)>, LineColumn)>,
+    pub force_parse: Option<(Vec<(usize, ForceType)>, LineColumn)>,
 
     #[command(flatten)]
-    output_settings: OutputSettings,
+    pub output_settings: OutputSettings,
 
     #[arg(short = 'E', long, value_parser = validate_export_subtable)]
     /// Use a number or range end with `l/c` to specify the line or column
     /// Export the subtable of the cross parts of the lines and columns
-    export_subtable: Option<(Vec<usize>, Vec<usize>)>,
+    pub export_subtable: Option<(Vec<usize>, Vec<usize>)>,
 
     #[arg(short, long, requires = "config_name", value_hint = clap::ValueHint::FilePath)]
     /// Set the configuration file to use
     /// Use the configuration from the commandline first if conflict
-    config: Option<std::path::PathBuf>,
+    pub config: Option<std::path::PathBuf>,
 
     #[arg(short = 'n', long, requires = "config")]
     /// Set the configuration name you want to use in the configuration file
-    config_name: Option<String>,
+    pub config_name: Option<String>,
 
     #[arg(short, long)]
     /// Export the setting to the given toml file, but not run the program
-    dry: Option<String>,
+    pub dry: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -209,11 +230,11 @@ struct OutputSettings {
     #[arg(short, long, value_parser = validate_output, value_hint = clap::ValueHint::FilePath)]
     /// The path of output file, use console output if not set, infer the format
     /// by the suffix of the file
-    output: Option<(String, OutputFormat)>,
+    pub output: Option<(String, OutputFormat)>,
 
     #[arg(short = 'C', long, value_parser = validate_export_color)]
     /// Set the color of the table by line, enable when export mode is console
-    export_color: Option<(Vec<(usize, OutputColor)>, Vec<(usize, OutputColor)>)>,
+    pub export_color: Option<(Vec<(usize, OutputColor)>, Vec<(usize, OutputColor)>)>,
 }
 
 fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn), String> {
