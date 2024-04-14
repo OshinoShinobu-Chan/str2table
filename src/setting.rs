@@ -36,8 +36,9 @@
 //! - `-es`/`--export-subtable`: Set the subtable to export, default is the whole table.
 //! Use number or range end with `l/c` to specify the line or column.
 //! Export the subtable of the cross parts of the lines and columns.
-//! - `-c`/`--config`: Set the configuration file to use and the configuration name
-//! you want to use. Use the configuration from the commandline first if conflict.
+//! - `-c`/`--config`: Set the configuration file to use and.
+//! Use the configuration from the commandline first if conflict.
+//! - `-n`/`--config-name`: Set the configuration name you want to use in the configuration file.
 //! - `-d`/`--dry`: Export the setting to the given toml file, but not run the program.
 //! - `-h`/`--help`: Print the help message.
 //!
@@ -166,9 +167,9 @@ enum OutputColor {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    #[arg(short, long)]
+    #[arg(short, long, value_hint = clap::ValueHint::FilePath)]
     /// The path of input file, use console input if not set
-    input: Option<String>,
+    input: Option<std::path::PathBuf>,
 
     #[arg(short, long, default_value = " ")]
     seperation: String,
@@ -188,10 +189,14 @@ pub struct Args {
     /// Export the subtable of the cross parts of the lines and columns
     export_subtable: Option<(Vec<usize>, Vec<usize>)>,
 
-    #[arg(short, long)]
-    /// Set the configuration file to use and the configuration name you want to use
+    #[arg(short, long, requires = "config_name", value_hint = clap::ValueHint::FilePath)]
+    /// Set the configuration file to use
     /// Use the configuration from the commandline first if conflict
-    config: Option<Vec<String>>,
+    config: Option<std::path::PathBuf>,
+
+    #[arg(short = 'n', long, requires = "config")]
+    /// Set the configuration name you want to use in the configuration file
+    config_name: Option<String>,
 
     #[arg(short, long)]
     /// Export the setting to the given toml file, but not run the program
@@ -201,7 +206,7 @@ pub struct Args {
 #[derive(Args, Debug)]
 #[group(multiple = false)]
 struct OutputSettings {
-    #[arg(short, long, value_parser = validate_output)]
+    #[arg(short, long, value_parser = validate_output, value_hint = clap::ValueHint::FilePath)]
     /// The path of output file, use console output if not set, infer the format
     /// by the suffix of the file
     output: Option<(String, OutputFormat)>,
@@ -485,10 +490,12 @@ fn validate_export_color(
                 Some('y') => color = OutputColor::Yellow,
                 Some('x') => color = OutputColor::Grey,
                 Some('w') => color = OutputColor::White,
-                _ => return Err(format!(
+                _ => {
+                    return Err(format!(
                     "'\x1b[1;31m{}\x1b[0m' should end with color 'r', 'g', 'b', 'y', 'x' or 'w'",
                     range[1]
-                )),
+                ))
+                }
             }
 
             match range[1][..range[1].len() - 2].parse::<usize>() {
@@ -555,10 +562,12 @@ fn validate_export_color(
                 Some('y') => color = OutputColor::Yellow,
                 Some('x') => color = OutputColor::Grey,
                 Some('w') => color = OutputColor::White,
-                _ => return Err(format!(
+                _ => {
+                    return Err(format!(
                     "'\x1b[1;31m{}\x1b[0m' should end with color 'r', 'g', 'b', 'y', 'x' or 'w'",
                     part
-                )),
+                ))
+                }
             }
 
             match part[..part.len() - 2].parse::<usize>() {
@@ -581,7 +590,117 @@ fn validate_export_color(
 }
 
 fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), String> {
-    // TODO
-    println!("{:?}", s);
-    Ok((Vec::new(), Vec::new()))
+    let parts = s.split(',');
+    let mut line: Vec<usize> = Vec::new();
+    let mut column: Vec<usize> = Vec::new();
+    for part in parts {
+        // if part is a range
+        if part.contains('-') {
+            let range = part.split('-').collect::<Vec<&str>>();
+            // parse start of range
+            let start: usize;
+            match range[0].parse::<usize>() {
+                Ok(n) => start = n,
+                Err(e) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' has {}",
+                        range[0],
+                        e.to_string()
+                    ))
+                }
+            }
+
+            // parse end of range
+            let end: usize;
+            let is_line: bool;
+            if range[1].len() <= 1 {
+                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
+            }
+            let last = range[1].chars().last();
+
+            match last {
+                Some('l') => is_line = true,
+                Some('c') => is_line = false,
+                Some(_) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
+                        range[1]
+                    ))
+                }
+                None => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
+                        range[1]
+                    ))
+                }
+            }
+
+            match range[1][..range[1].len() - 1].parse::<usize>() {
+                Ok(n) => end = n,
+                Err(e) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' has {}",
+                        range[1],
+                        e.to_string()
+                    ))
+                }
+            }
+
+            if start > end {
+                return Err(format!(
+                    "Start of range (\x1b[1;31m{}\x1b[0m) should be less than end (\x1b[1;31m{}\x1b[0m)",
+                    start,
+                    end,
+                ));
+            }
+            for i in start..=end {
+                if is_line {
+                    line.push(i);
+                } else {
+                    column.push(i);
+                }
+            }
+        } else {
+            // part is a number
+            let num: usize;
+            let is_line: bool;
+            if part.len() <= 1 {
+                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
+            }
+            let last = part.chars().last();
+            match last {
+                Some('l') => is_line = true,
+                Some('c') => is_line = false,
+                Some(_) => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
+                        part
+                    ))
+                }
+                None => {
+                    return Err(format!(
+                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
+                        part
+                    ))
+                }
+            }
+
+            match part[..part.len() - 1].parse::<usize>() {
+                Ok(n) => num = n,
+                Err(e) => return Err(format!("'\x1b[1;31m{}\x1b[0m' has {}", part, e.to_string())),
+            }
+
+            // put the result to vec
+            if is_line {
+                line.push(num);
+            } else {
+                column.push(num);
+            }
+        }
+    }
+    // sort the lines and columns by number
+    line.sort();
+    column.sort();
+
+    Ok((line, column))
 }
