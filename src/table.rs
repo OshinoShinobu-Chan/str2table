@@ -17,9 +17,14 @@ impl Table {
     }
 
     /// Parse a string to a table, assuming the string has '\n' as line seperator
-    pub fn from_string(s: String, seperation: &str) -> Table {
+    pub fn from_string(s: String, seperation: &str, end_line: &str) -> Table {
+        let mut s = s;
+        if !end_line.contains("\n") {
+            // remove '\n' from input
+            s = s.replace("\n", "");
+        }
         let mut lines: Vec<Tableline> = s
-            .split('\n')
+            .split(end_line)
             .map(|line| Tableline::from_string(line.to_string(), seperation))
             .collect();
         lines.retain(|line| line.len() > 0);
@@ -27,9 +32,14 @@ impl Table {
     }
 
     /// Parse a string to a table, force the cell as string, assuming the string has '\n' as line seperator
-    pub fn from_string_force(s: String, seperation: char) -> Table {
+    pub fn from_string_force(s: String, seperation: char, end_line: &str) -> Table {
+        let mut s = s;
+        if !end_line.contains("\n") {
+            // remove '\n' from input
+            s = s.replace("\n", "");
+        }
         let lines: Vec<Tableline> = s
-            .split('\n')
+            .split(end_line)
             .map(|line| Tableline::from_string_force(line.to_string(), seperation))
             .collect();
         Table(lines)
@@ -294,7 +304,7 @@ mod tests {
     #[test]
     fn test_from_string_simple() {
         let s = "1,2223,3\n4,5,6\n7,8,9".to_string();
-        let table = Table::from_string(s, ',');
+        let table = Table::from_string(s, ',', '\n');
         println!("{:?}", table);
         assert_eq!(table.len(), 3);
         assert_eq!(table.get_line(0).unwrap().len(), 3);
@@ -314,10 +324,10 @@ mod tests {
     #[test]
     fn test_to_txt() {
         let s = "1,2223,3\n4,5,6\n7,8,9".to_string();
-        let table = Table::from_string(s, ',');
+        let table = Table::from_string(s, ',', '\n');
         table.to_txt("test.txt", ',').unwrap();
         let s = std::fs::read_to_string("test.txt").unwrap();
-        let table = Table::from_string(s, ',');
+        let table = Table::from_string(s, ',', '\n');
         println!("{:?}", table);
         assert_eq!(table.len(), 3);
         assert_eq!(table.get_line(0).unwrap().len(), 3);

@@ -13,7 +13,7 @@ use setting::Args;
 
 fn main() {
     let args = Args::parse();
-    let mut table = read::read_from_io(args.seperation.as_str());
+    let mut table = read::read_from_io(args.seperation.as_str(), args.end_line.as_str());
     println!("{:?}", args);
     table.set_color_line(1, setting::OutputColor::Red);
     table.set_color_line(2, setting::OutputColor::Yellow);

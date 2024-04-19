@@ -14,9 +14,10 @@
 //!
 //! ## Commandline Options
 //! - `-i`: Set the input path of the table, use console input if not set
-//! - `-s`/`--seperation`: Set the seperation char of the table, default is ` `, can be multiple chars
-//! - `-pm`/`--parse-mode`: Set the parse mode of the table, default is `a`(auto), can be `a` or `s`
-//! - `-fp`/`--force-parse`: Give the lines or columns with specific type.
+//! - `-s`/`--seperation`: Set the seperation pattern of the table, default is ` `, can be multiple chars
+//! - `-e`/`--end-line`: Set the pattern to end the line, default is `\n`
+//! - `-p`/`--parse-mode`: Set the parse mode of the table, default is `a`(auto), can be `a` or `s`
+//! - `-f`/`--force-parse`: Give the lines or columns with specific type.
 //! Use number or range end with `l/c` to specify the line or column.
 //! And only one number or range include `l/c` is ok.
 //! Use `x-y` to specify the range, `x` and `y` are both inclusive.
@@ -28,12 +29,12 @@
 //! Lines or columns that do not exist will be ignored.
 //! - `-o`/`--output`: Set the path of file to export the table, enable when export mode is not console.
 //! Infer the format by the suffix of the file, support `csv`, `txt`, `exls`.
-//! - `-ec`/`--export-color`: Set the color of the table by line, enable when export mode is console
+//! - `-C`/`--export-color`: Set the color of the table by line, enable when export mode is console
 //! Use number or range end with `l/c` and with color, default is black.
 //! `r` represents red, `g` represents green, `b` represents blue, `y` represents yellow, `x` represents grey
 //! `w` represents white.
 //! Follow the line color first if conflict.
-//! - `-es`/`--export-subtable`: Set the subtable to export, default is the whole table.
+//! - `-S`/`--export-subtable`: Set the subtable to export, default is the whole table.
 //! Use number or range end with `l/c` to specify the line or column.
 //! Export the subtable of the cross parts of the lines and columns.
 //! - `-c`/`--config`: Set the configuration file to use and.
@@ -193,7 +194,13 @@ pub struct Args {
     pub input: Option<std::path::PathBuf>,
 
     #[arg(short, long, default_value = " ")]
+    /// Set the seperation pattern of the table, default is ` `, can be multiple chars
     pub seperation: String,
+
+    #[arg(short, long, default_value = "\n")]
+    /// Set the pattern to end the line, default is `\n`. if this is not `\n`,
+    /// then all the `\n` and `\r` in the input will be removed first.
+    pub end_line: String,
 
     #[arg(short, long, default_value = "a", value_enum)]
     pub parse_mode: ParseMode,
@@ -205,7 +212,7 @@ pub struct Args {
     #[command(flatten)]
     pub output_settings: OutputSettings,
 
-    #[arg(short = 'E', long, value_parser = validate_export_subtable)]
+    #[arg(short = 'S', long, value_parser = validate_export_subtable)]
     /// Use a number or range end with `l/c` to specify the line or column
     /// Export the subtable of the cross parts of the lines and columns
     pub export_subtable: Option<(Vec<usize>, Vec<usize>)>,
@@ -235,6 +242,32 @@ struct OutputSettings {
     #[arg(short = 'C', long, value_parser = validate_export_color)]
     /// Set the color of the table by line, enable when export mode is console
     pub export_color: Option<(Vec<(usize, OutputColor)>, Vec<(usize, OutputColor)>)>,
+}
+
+impl Default for OutputSettings {
+    fn default() -> Self {
+        OutputSettings {
+            output: None,
+            export_color: None,
+        }
+    }
+}
+
+impl Default for Args {
+    fn default() -> Self {
+        Args {
+            input: None,
+            seperation: " ".to_string(),
+            end_line: "\n".to_string(),
+            parse_mode: ParseMode::A,
+            force_parse: None,
+            output_settings: OutputSettings::default(),
+            export_subtable: None,
+            config: None,
+            config_name: None,
+            dry: None,
+        }
+    }
 }
 
 fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn), String> {

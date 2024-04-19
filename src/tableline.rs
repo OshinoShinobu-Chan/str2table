@@ -1,5 +1,6 @@
 //! # Tableline
 //! Include a vector of tablecells, representing a line of a table.
+use crate::setting::Args;
 use crate::tablecell::Tablecell;
 #[derive(Clone)]
 pub struct Tableline(Vec<Tablecell>);
@@ -11,6 +12,11 @@ impl Tableline {
 
     pub fn from_vec(cells: Vec<Tablecell>) -> Tableline {
         Tableline(cells)
+    }
+
+    /// Parse a string a tableline, use the settings from `args`
+    pub fn from_string_arg(s: String, args: Args) -> Tableline {
+        // TODO
     }
 
     /// Parse a string to a tableline, assuming the string has no '\n' or '\r' in it
