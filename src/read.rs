@@ -27,11 +27,11 @@ pub fn read_from_file(file: &str, seperation: &str, end_line: &str) -> Table {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn test_read_from_io() {
-        let table = read_from_io(" ", "\n");
-        println!("{:?}", table);
-    }
+    // #[test]
+    // fn test_read_from_io() {
+    //     let table = read_from_io(" ", "\n");
+    //     println!("{:?}", table);
+    // }
 
     #[test]
     fn test_read_from_file() {

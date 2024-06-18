@@ -30,63 +30,10 @@ impl Tablecell {
         }
     }
 
-    /// Force to convert a string to a cell of unsigned integer
-    /// use ```auto_from``` if failed
-    pub fn force_as_uint(value: String) -> Self {
-        if let Ok(cell) = Tablecellcore::force_as_u8(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_u16(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_u32(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_u64(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_u128(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else {
-            Tablecell::auto_from(value)
-        }
-    }
-
     /// Force to convert a string to a cell of integer
     /// use ```auto_from``` if failed
     pub fn force_as_int(value: String) -> Self {
-        if let Ok(cell) = Tablecellcore::force_as_i8(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_i16(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_i32(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_i64(&value) {
-            Tablecell {
-                core: cell,
-                color: OutputColor::default(),
-            }
-        } else if let Ok(cell) = Tablecellcore::force_as_i128(&value) {
+        if let Ok(cell) = Tablecellcore::force_as_int(&value) {
             Tablecell {
                 core: cell,
                 color: OutputColor::default(),
@@ -99,54 +46,13 @@ impl Tablecell {
     /// Force to convert a string to a cell of float
     /// use ```auto_from``` if failed
     pub fn force_as_float(value: String) -> Self {
-        let v_f32 = value.parse::<f32>();
-        if v_f32.is_err() {
-            // If parse to f32 get error, it must be a string
-            return Self::auto_from(value);
-        }
-        let v_f32 = v_f32.unwrap();
-        let v_f64 = value.parse::<f64>().unwrap();
-        if v_f32.is_infinite() {
-            return Self {
-                core: Tablecellcore::force_as_f64(&value).unwrap(),
-                color: OutputColor::default(),
-            };
-        }
-        if v_f32.is_nan() {
-            return Self {
-                core: Tablecellcore::force_as_f32(&value).unwrap(),
-                color: OutputColor::default(),
-            };
-        }
-        // println!("{} {}", v_f32.to_string(), value);
-        if v_f32.to_string() == v_f64.to_string() && (v_f32 == 0.0 || v_f32 == -0.0) {
-            let parts = value
-                .split(|c| c == '.' || c == 'e' || c == 'E')
-                .collect::<Vec<&str>>();
-            for part in parts {
-                if let Ok(v) = part.parse::<f64>() {
-                    if v != 0.0 {
-                        return Self {
-                            core: Tablecellcore::force_as_f64(&value).unwrap(),
-                            color: OutputColor::default(),
-                        };
-                    }
-                }
-            }
-            Self {
-                core: Tablecellcore::force_as_f32(&value).unwrap(),
-                color: OutputColor::default(),
-            }
-        } else if v_f32.to_string() == v_f64.to_string() {
-            Self {
-                core: Tablecellcore::force_as_f32(&value).unwrap(),
+        if let Ok(cell) = Tablecellcore::force_as_float(&value) {
+            Tablecell {
+                core: cell,
                 color: OutputColor::default(),
             }
         } else {
-            Self {
-                core: Tablecellcore::force_as_f64(&value).unwrap(),
-                color: OutputColor::default(),
-            }
+            Tablecell::auto_from(value)
         }
     }
 

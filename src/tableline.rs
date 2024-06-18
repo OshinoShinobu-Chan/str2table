@@ -15,9 +15,9 @@ impl Tableline {
     }
 
     /// Parse a string a tableline, use the settings from `args`
-    pub fn from_string_arg(s: String, args: Args) -> Tableline {
-        // TODO
-    }
+    // pub fn from_string_arg(s: String, args: Args) -> Tableline {
+    //     // TODO
+    // }
 
     /// Parse a string to a tableline, assuming the string has no '\n' or '\r' in it
     ///
@@ -221,12 +221,18 @@ mod tests {
     #[test]
     fn test_from_string_simple() {
         let s = "  a  |  123.456 |  100  ".to_string();
-        let line = Tableline::from_string(s, '|');
+        let line = Tableline::from_string(s, "|");
         let output = format!("{:?}", line);
-        assert_eq!(output, "| a<str> | 123.456<f32> | 100<u8> | ");
+        assert_eq!(
+            output,
+            "| a<str><Black> | 123.456<float><Black> | 100<int><Black> | "
+        );
         let s = "  a  |  123.456 |  100  |   |".to_string();
-        let line = Tableline::from_string(s, '|');
+        let line = Tableline::from_string(s, "|");
         let output = format!("{:?}", line);
-        assert_eq!(output, "| a<str> | 123.456<f32> | 100<u8> | ");
+        assert_eq!(
+            output,
+            "| a<str><Black> | 123.456<float><Black> | 100<int><Black> | "
+        );
     }
 }
