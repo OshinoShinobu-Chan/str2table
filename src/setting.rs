@@ -59,6 +59,8 @@
 //! # Configuration file for str2table
 //! # You can use conf_name to set the name of the configuration
 //! # So you can include multiple configuration in one file
+//! # but you have to include all the name of the configuration a the beginning of the file, as below
+//! name = ["conf_name"]
 //! [conf_name]
 //! # input path, use console input if not set
 //! input = "input.txt"
@@ -267,6 +269,15 @@ impl Default for Args {
             config_name: None,
             dry: None,
         }
+    }
+}
+
+impl Args {
+    pub fn from_toml(file: &str) -> Result<Args, std::io::Error> {
+        // TODO
+    }
+    pub fn to_toml(&self, file: &str) -> Result<(), std::io::Error> {
+        // TODO
     }
 }
 

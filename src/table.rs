@@ -4,6 +4,7 @@ use crate::export::Export;
 use crate::setting::OutputColor;
 use crate::tablecell::Tablecell;
 use crate::tableline::Tableline;
+use xlsxwriter::prelude::*;
 
 pub struct Table(Vec<Tableline>);
 
@@ -194,22 +195,21 @@ impl Export for Table {
         println!("{}", self);
     }
 
-    fn to_txt(&self, file: &str, seperation: char) -> Result<(), String> {
+    fn to_txt(&self, file: &str, seperation: char) -> Result<(), std::io::Error> {
         let mut s = String::new();
         for line in self.0.iter() {
             s.push_str(line.to_string_format(seperation).as_str());
             s.push('\n');
         }
-        std::fs::write(file, s).map_err(|err| err.to_string())
+        std::fs::write(file, s)
     }
 
-    fn to_csv(&self, _file: &str) -> Result<(), String> {
-        //TODO
-        Ok(())
-    }
+    // fn to_csv(&self, _file: &str) -> Result<(), String> {
+    //     //TODO
+    //     Ok(())
+    // }
 
-    fn to_excel(&self, file: &str, sheet: &str) -> Result<(), String> {
-        //TODO
+    fn to_excel(&self, file: &str, sheet: &str) -> Result<(), XlsxError> {
         Ok(())
     }
 }
