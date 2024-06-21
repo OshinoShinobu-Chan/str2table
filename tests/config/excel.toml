@@ -1,0 +1,12 @@
+name = ["default_config1", "default_config2", "default_config3"]
+[default_config1]
+input = "ls_small.txt"
+output = "./data/ls_small.xlsx"
+
+[default_config2]
+input = "ls_large.txt"
+output = "./data/ls_large.xlsx"
+
+[default_config3]
+input = "pip.txt"
+output = "./data/pip.xlsx"

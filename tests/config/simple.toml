@@ -1,0 +1,27 @@
+name = ["simple_config1", "simple_config2", "simple_config3"]
+[simple_config1]
+input = "ls_small.txt"
+seperation = " "
+is_auto = true
+force_parse.line = []
+force_parse.column = []
+export_color.line = []
+export_color.column = []
+
+[simple_config2]
+input = "ls_large.txt"
+seperation = " "
+is_auto = true
+force_parse.line = []
+force_parse.column = []
+export_color.line = []
+export_color.column = []
+
+[simple_config3]
+input = "pip.txt"
+seperation = " "
+is_auto = true
+force_parse.line = []
+force_parse.column = []
+export_color.line = []
+export_color.column = []

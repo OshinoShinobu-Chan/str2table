@@ -1,0 +1,13 @@
+name = ["color_config1", "color_config2", "color_config3"]
+[color_config1]
+input = "ls_small.txt"
+export_color.line = [[1, 1, 'r'], [2, 3, 'g']]
+
+
+[color_config2]
+input = "ls_large.txt"
+export_color.column = [[2, 2, 'x'], [3, 4, 'b']]
+
+[color_config3]
+input = "pip.txt"
+export_color.column = [[1, 1, 'b'], [2, 2, 'y']]

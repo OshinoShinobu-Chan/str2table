@@ -1,0 +1,69 @@
+name = [
+    "error_config1",
+    "error_config2",
+    "error_config3",
+    "error_config4",
+    "error_config5",
+    "error_config6",
+    "error_config7",
+    "error_config8",
+    "error_config9",
+    "error_config10",
+    "error_config11",
+    "error_config12",
+    "error_config13",
+    "error_config14",
+]
+[error_config1]
+input = "ls_small.txt"
+output = "output.a"
+
+[error_config2]
+input = "ls_large.txt"
+seperation = true
+
+[error_config3]
+input = "pip.txt"
+force_parse.42 = [[1, 1, "test"]]
+
+[error_config4]
+input = "ls_large.txt"
+force_parse.line = [[1, 4, 'i'], [2, 2, 's']]
+
+[error_config5]
+input = "ls_large.txt"
+force_parse.line = [[1, 200, 'i']]
+
+[error_config6]
+input = "ls_small.txt"
+force_parse.line = [[1, 1, 'r'], ['a', 'b', 'c']]
+
+[error_config7]
+input = "pip.txt"
+export_color.column = [[1, 1, 'h'], ['a', 'b', 'c']]
+
+[error_config8]
+input = "ls_small.txt"
+export_subtable.column = [1, 200]
+
+[error_config9]
+configuration = ["/path/invalid.toml", "42"]
+
+[error_config10]
+input = "ls_large.txt"
+export_color.column = [[1, 200, 'r']]
+
+[error_config11]
+input = "ls_small.txt"
+export_color.column = [[1, 5, 'r'], [2, 6, 'g']]
+
+[error_config12]
+input = "pip.txt"
+wrong_arg = "42"
+
+[error_config13]
+input = "pip.txt"
+configuration = [".", "error_config13"]
+
+[error_config14]
+input = "42.txt"

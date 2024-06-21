@@ -1,0 +1,9 @@
+name = ["default_config1", "default_config2", "default_config3"]
+[default_config1]
+input = "ls_small.txt"
+
+[default_config2]
+input = "ls_large.txt"
+
+[default_config3]
+input = "pip.txt"

@@ -20,7 +20,7 @@
 //! - `-f`/`--force-parse`: Give the lines or columns with specific type.
 //! Use number or range end with `l/c` to specify the line or column.
 //! And only one number or range include `l/c` is ok.
-//! Use `x-y` to specify the range, `x` and `y` are both inclusive.
+//! Use `x-y` to specify the range, `x` and `y` are both included
 //! Use `s/u/i/f` to specify the type, `s` for string, `i` for integer, `f` for float, at the end of every part.
 //! Use `,` to seperate the lines or columns, and do not use space
 //! Panic if the the force type is conflict.
@@ -69,6 +69,7 @@
 //! seperation = "#"
 //!
 //! # Is auto parse, default is true
+//! # if set to false, force all the data to str
 //! is_auto = true
 //!
 //! # force parse line, use a array, default is []
@@ -80,10 +81,11 @@
 //! ]
 //!
 //! # force parse column, use a array, default is [], same as line
-//! force_parse.column = [
-//! [1, 1, 's'],
-//! [2, 2, 'i'],
-//! ]
+//! # this can't be used with force_parse.line
+//! # force_parse.column = [
+//! # [1, 1, 's'],
+//! # [2, 2, 'i'],
+//! # ]
 //!
 //! # export path, use console output if not set
 //! export = "output.txt"
@@ -103,19 +105,23 @@
 //! ]
 //!
 //! # export subtable line, use a array, default export the whole line
+//! # you can also use an array of two to represent a range
 //! # the following example means, export the first line and third line
 //! export_subtable.line = [1, 3]
 //!
 //! # export subtable column, use a array, default export the whole column
+//! # you can also use an array of two to represent a range
 //! # the following example means, export the first column and third column
 //! export_subtable.column = [1, 3]
 //!
 //! # not export subtable line, use a array, default is [] means export the whole column
+//! # you can also use an array of two to represent a range
 //! # the following example means, not export the first and third line
 //! # can't set it with export_subtable.line
 //! # not_export_subtable.line = [1, 3]
 //!
 //! # not export subtable column, use a array, default is [] means export the whole line
+//! # you can also use an array of two to represent a range
 //! # the following example means, not export the first and third column
 //! # can't set it with export_subtable.column
 //! # not_export_subtable.column = [1, 3]

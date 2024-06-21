@@ -1,0 +1,15 @@
+name = ["conflicts_config1", "conflicts_config2", "conflicts_config3"]
+[conflicts_config1]
+input = "ls_small.txt"
+export_color.line = [[1, 1, 'r']]
+export_color.column = [[2, 5, 'g']]
+
+[conflicts_config2]
+input = "ls_large.txt"
+export_color.line = [[1, 1, 'r']]
+export_color.column = [[2, 5, 'g']]
+
+[conflicts_config3]
+input = "pip.txt"
+export_color.line = [[5, 5, 'r']]
+export_color.column = [[1, 1, 'y']]

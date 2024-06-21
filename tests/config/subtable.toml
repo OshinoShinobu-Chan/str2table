@@ -1,0 +1,20 @@
+name = ["subtable_config1", "subtable_config2", "subtable_config3"]
+[subtable_config1]
+input = "ls_small.txt"
+export_subtable.line = [2, 3, 4]
+export_subtable.column = [1, 9]
+
+[subtable_config2]
+input = "ls_large.txt"
+export_subtable.line = [[2, 4], [6, 8]]
+export_subtable.column = [1, 9]
+
+[subtable_config3]
+input = "pip.txt"
+export_subtable.line = [[1, 10], 12]
+not_export_subtable.column = [3]
+
+[subtable_config4]
+input = "ls_large.txt"
+not_export_subtable.line = [[1, 10]]
+not_export_subtable.column = [1]

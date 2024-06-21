@@ -1,0 +1,12 @@
+name = ["error_force_config1", "error_force_config2", "error_force_config3"]
+[error_force_config1]
+input = "ls_small.txt"
+force_parse.column = [[2, 2, 'i'], [7, 8, 'i']]
+
+[error_force_config2]
+input = "ls_large.txt"
+force_parse.column = [[2, 2, 'i'], [7, 8, 'i']]
+
+[error_force_config3]
+input = "pip.txt"
+force_parse.column = [[2, 2, 'i']]

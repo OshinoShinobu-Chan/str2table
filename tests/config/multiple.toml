@@ -1,0 +1,19 @@
+name = ["multiple_config1", "multiple_config2", "multiple_config3"]
+[multiple_config1]
+input = "ls_small.txt"
+is_auto = false
+force_parse.column = [[2, 2, 's'], [5, 5, 's'], [7, 7, 'i']]
+export_color.line = [[1, 1, 'r'], [2, 3, 'g']]
+export_subtable.line = [2, 3, 4]
+
+[multiple_config2]
+input = "ls_large.txt"
+force_parse.column = [[2, 2, 's'], [5, 5, 's'], [7, 7, 'i']]
+export_color.column = [[2, 2, 'x'], [3, 4, 'b']]
+export_subtable.column = [1, 9]
+
+[multiple_config3]
+input = "pip.txt"
+force_parse.column = [[2, 2, 's']]
+export_color.column = [[1, 1, 'b'], [2, 2, 'y']]
+not_export_subtable.column = [1]
