@@ -59,8 +59,6 @@
 //! # Configuration file for str2table
 //! # You can use conf_name to set the name of the configuration
 //! # So you can include multiple configuration in one file
-//! # but you have to include all the name of the configuration a the beginning of the file, as below
-//! name = ["conf_name"]
 //! [conf_name]
 //! # input path, use console input if not set
 //! input = "input.txt"
@@ -131,18 +129,16 @@
 //! configuration = ["path/to/file", "conf_name"]
 //! ```
 
-use std::fmt::format;
-
 use clap::Parser;
 use clap::*;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, ValueEnum)]
-enum ParseMode {
+pub enum ParseMode {
     A,
     S,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ForceType {
+pub enum ForceType {
     S,
     U,
     I,
@@ -150,13 +146,13 @@ enum ForceType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LineColumn {
+pub enum LineColumn {
     Line,
     Column,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum OutputFormat {
+pub enum OutputFormat {
     Csv,
     Txt,
     Exls,
@@ -241,7 +237,7 @@ pub struct Args {
 
 #[derive(Args, Debug)]
 #[group(multiple = false)]
-struct OutputSettings {
+pub struct OutputSettings {
     #[arg(short, long, value_parser = validate_output, value_hint = clap::ValueHint::FilePath)]
     /// The path of output file, use console output if not set, infer the format
     /// by the suffix of the file
@@ -279,11 +275,231 @@ impl Default for Args {
 }
 
 impl Args {
-    pub fn from_toml(file: &str) -> Result<Args, std::io::Error> {
-        // TODO
+    pub fn from_toml(file: &str, name: &str) -> Result<Args, std::io::Error> {
+        let content = std::fs::read(file)?;
+        let s = std::str::from_utf8(&content).expect("Invalid UTF-8 sequence from toml file");
+        let table = s.parse::<toml::Table>().expect("Invalid toml file");
+        let conf = table
+            .get(name)
+            .expect("No such configuration in the toml file");
+
+        // parse arguements
+        let input = conf
+            .get("input")
+            .map(|path| std::path::PathBuf::from(path.as_str().expect("Invalid input path")));
+
+        let seperation = conf
+            .get("seperation")
+            .map(|s| s.as_str().expect("Invalid seperation").to_string())
+            .unwrap_or(" ".to_string());
+
+        let end_line = conf
+            .get("end_line")
+            .map(|s| s.as_str().expect("Invalid end line").to_string())
+            .unwrap_or("\n".to_string());
+
+        let parse_mode = conf
+            .get("is_auto")
+            .map(|b| b.as_bool().expect("Invalid parse mode"));
+
+        let mut force_parse: Option<(Vec<(usize, ForceType)>, LineColumn)> = None;
+        let force = conf
+            .get("force_parse")
+            .map(|t| t.as_table().expect("Invalid force parse"));
+        if force.is_some() {
+            let force = force.unwrap();
+            let l = force.get("line").is_some();
+            let c = force.get("column").is_some();
+            let force_array;
+            let lc = if l && c {
+                panic!("Can't set force parse for both line and column");
+            } else if l {
+                force_array = force
+                    .get("line")
+                    .map(|a| a.as_array().expect("Invalid force parse line"))
+                    .unwrap();
+                LineColumn::Line
+            } else if c {
+                force_array = force
+                    .get("column")
+                    .map(|a| a.as_array().expect("Invalid force parse column"))
+                    .unwrap();
+                LineColumn::Column
+            } else {
+                panic!("Invalid force parse");
+            };
+            force_parse = Some((Vec::new(), lc));
+            for i in force_array {
+                let i = i.as_array().expect("Invalid force parse");
+                let start = i[0].as_integer().expect("Invalid force parse") as usize;
+                let end = i[1].as_integer().expect("Invalid force parse") as usize;
+                let t = i[2].as_str().expect("Invalid force parse");
+                let t = match t {
+                    "s" => ForceType::S,
+                    "u" => ForceType::U,
+                    "i" => ForceType::I,
+                    "f" => ForceType::F,
+                    _ => panic!("Invalid force parse"),
+                };
+                for j in start..=end {
+                    force_parse.as_mut().unwrap().0.push((j, t));
+                }
+            }
+        }
+
+        let output = conf
+            .get("output")
+            .map(|s| s.as_str().expect("Invalid output path").to_string())
+            .map(|v| {
+                let suffix = v.split('.').last().expect("Invalid output path");
+                match suffix {
+                    "csv" => (v, OutputFormat::Csv),
+                    "txt" => (v, OutputFormat::Txt),
+                    "xlsx" | "xls" => (v, OutputFormat::Exls),
+                    _ => panic!("Invalid output path"),
+                }
+            });
+
+        let mut export_color = None;
+        let color = conf
+            .get("export_color")
+            .map(|t| t.as_table().expect("Invalid export color"));
+        if let Some(color) = color {
+            let mut line: Vec<(usize, OutputColor)> = Vec::new();
+            let mut column: Vec<(usize, OutputColor)> = Vec::new();
+            if let Some(export_color_line) = color.get("line") {
+                let export_color_line = export_color_line
+                    .as_array()
+                    .expect("Invalid export color line");
+                for i in export_color_line {
+                    let i = i.as_array().expect("Invalid export color line");
+                    let start = i[0].as_integer().expect("Invalid export color line") as usize;
+                    let end = i[1].as_integer().expect("Invalid export color line") as usize;
+                    let c = i[2].as_str().expect("Invalid export color line");
+                    let c = match c {
+                        "r" => OutputColor::Red,
+                        "g" => OutputColor::Green,
+                        "b" => OutputColor::Blue,
+                        "y" => OutputColor::Yellow,
+                        "x" => OutputColor::Grey,
+                        "w" => OutputColor::White,
+                        _ => panic!("Invalid export color line"),
+                    };
+                    for j in start..=end {
+                        line.push((j, c));
+                    }
+                }
+            }
+            if let Some(export_color_column) = color.get("column") {
+                let export_color_column = export_color_column
+                    .as_array()
+                    .expect("Invalid export color column");
+                for i in export_color_column {
+                    let i = i.as_array().expect("Invalid export color column");
+                    let start = i[0].as_integer().expect("Invalid export color column") as usize;
+                    let end = i[1].as_integer().expect("Invalid export color column") as usize;
+                    let c = i[2].as_str().expect("Invalid export color column");
+                    let c = match c {
+                        "r" => OutputColor::Red,
+                        "g" => OutputColor::Green,
+                        "b" => OutputColor::Blue,
+                        "y" => OutputColor::Yellow,
+                        "x" => OutputColor::Grey,
+                        "w" => OutputColor::White,
+                        _ => panic!("Invalid export color column"),
+                    };
+                    for j in start..=end {
+                        column.push((j, c));
+                    }
+                }
+            }
+            export_color = Some((line, column));
+        }
+
+        let output_settings = OutputSettings {
+            output,
+            export_color,
+        };
+
+        let mut export_subtable = None;
+        let export = conf
+            .get("export_subtable")
+            .map(|t| t.as_table().expect("Invalid export subtable"));
+        let mut export_line = None;
+        let mut export_column = None;
+        if export.is_some() {
+            let export = export.unwrap();
+            export_line = export
+                .get("line")
+                .map(|t| t.as_array().expect("Invalid export subtable line"));
+            export_column = export
+                .get("column")
+                .map(|t| t.as_array().expect("Invalid export subtable column"));
+        }
+        if export_line.is_some() || export_column.is_some() {
+            let mut line = Vec::new();
+            let mut column = Vec::new();
+            if export_line.is_some() {
+                let export_line = export_line.unwrap();
+                for lines in export_line {
+                    let lines = lines.as_array().expect("Invalid export subtable line");
+                    let start =
+                        lines[0].as_integer().expect("Invalid export subtable line") as usize;
+                    let end = lines[1].as_integer().expect("Invalid export subtable line") as usize;
+                    for i in start..=end {
+                        line.push(i as usize);
+                    }
+                }
+            }
+            if export_column.is_some() {
+                let export_column = export_column.unwrap();
+                for columns in export_column {
+                    let columns = columns.as_array().expect("Invalid export subtable column");
+                    let start = columns[0]
+                        .as_integer()
+                        .expect("Invalid export subtable column")
+                        as usize;
+                    let end = columns[1]
+                        .as_integer()
+                        .expect("Invalid export subtable column")
+                        as usize;
+                    for i in start..=end {
+                        column.push(i as usize);
+                    }
+                }
+            }
+            export_subtable = Some((line, column));
+        }
+
+        let (config, config_name) = if let Some(config) = conf.get("configuration") {
+            let config = config.as_array().expect("Invalid configuration");
+            let path = config[0].as_str().expect("Invalid configuration path");
+            let name = config[1].as_str().expect("Invalid configuration name");
+            (Some(std::path::PathBuf::from(path)), Some(name.to_string()))
+        } else {
+            (None, None)
+        };
+
+        Ok(Args {
+            input,
+            seperation,
+            end_line,
+            parse_mode: if parse_mode.unwrap_or(true) {
+                ParseMode::A
+            } else {
+                ParseMode::S
+            },
+            force_parse,
+            output_settings,
+            export_subtable,
+            config,
+            config_name,
+            dry: None,
+        })
     }
-    pub fn to_toml(&self, file: &str) -> Result<(), std::io::Error> {
+    pub fn to_toml(&self, _file: &str) -> Result<(), std::io::Error> {
         // TODO
+        Ok(())
     }
 }
 
@@ -490,7 +706,7 @@ fn validate_output(s: &str) -> Result<(String, OutputFormat), String> {
     let format = match parts[parts.len() - 1] {
         "csv" => OutputFormat::Csv,
         "txt" => OutputFormat::Txt,
-        "exls" => OutputFormat::Exls,
+        "xls" | "xlsx" => OutputFormat::Exls,
         _ => {
             return Err(format!(
                 "Unsupported file format '\x1b[1;31m{}\x1b[0m'",
@@ -774,4 +990,12 @@ fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), String>
     column.sort();
 
     Ok((line, column))
+}
+
+mod tests {
+    #[test]
+    fn test_read_toml() {
+        // super::Args::from_toml("./tests/config/simple.toml", "simple_config5").unwrap();
+        // TODO
+    }
 }

@@ -1,4 +1,3 @@
-name = ["multiple_config1", "multiple_config2", "multiple_config3"]
 [multiple_config1]
 input = "ls_small.txt"
 is_auto = false

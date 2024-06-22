@@ -1,9 +1,3 @@
-name = [
-    "configuration_config1",
-    "configuration_config2",
-    "configuration_config3",
-    "configuration_config4",
-]
 [configuration_config1]
 input = "ls_small.txt"
 configuration = ["./color.toml", "color_config2"]

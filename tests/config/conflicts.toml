@@ -1,4 +1,3 @@
-name = ["conflicts_config1", "conflicts_config2", "conflicts_config3"]
 [conflicts_config1]
 input = "ls_small.txt"
 export_color.line = [[1, 1, 'r']]

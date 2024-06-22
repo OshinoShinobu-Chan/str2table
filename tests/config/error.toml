@@ -1,19 +1,3 @@
-name = [
-    "error_config1",
-    "error_config2",
-    "error_config3",
-    "error_config4",
-    "error_config5",
-    "error_config6",
-    "error_config7",
-    "error_config8",
-    "error_config9",
-    "error_config10",
-    "error_config11",
-    "error_config12",
-    "error_config13",
-    "error_config14",
-]
 [error_config1]
 input = "ls_small.txt"
 output = "output.a"
