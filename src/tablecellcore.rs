@@ -21,7 +21,6 @@ impl Tablecellcore {
     /// Create a new Tablecell with a string value, automatically decide its type
     pub fn auto_from(value: &String) -> Self {
         if let Ok(v) = IBig::from_str_with_radix_prefix(value.as_str()) {
-            //TODO: find out a suitable constraint to aviod excessive memory use
             Self::Int(v)
         } else if let Ok(v) = value.parse::<f64>() {
             Self::Float(v)
