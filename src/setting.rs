@@ -122,6 +122,8 @@ use clap::*;
 use std::io::Read;
 use std::io::Write;
 use toml::Table;
+//use HashMap
+use std::collections::HashMap;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, ValueEnum)]
 pub enum ParseMode {
     A,
@@ -266,7 +268,22 @@ impl Default for Args {
 }
 
 impl Args {
-    pub fn from_toml(file: &str, name: &str) -> Result<Args, std::io::Error> {
+    pub fn from_toml(
+        file: &str,
+        name: &str,
+        mut unique: Option<HashMap<(&str, &str), bool>>,
+    ) -> Result<Args, std::io::Error> {
+        if (unique.is_none()) {
+            unique = Some(HashMap::new());
+        } else if (unique.as_ref().unwrap().contains_key(&(file, name))) {
+            panic!("Configuration file loop");
+        }
+
+        let unique = unique.map(|mut m| {
+            m.insert((file, name), true);
+            m
+        });
+
         let content = std::fs::read(file)?;
         let s = std::str::from_utf8(&content).expect("Invalid UTF-8 sequence from toml file");
         let table = s.parse::<toml::Table>().expect("Invalid toml file");
@@ -471,7 +488,7 @@ impl Args {
             (None, None)
         };
 
-        Ok(Args {
+        let mut now_args = Args {
             input,
             seperation,
             end_line,
@@ -486,7 +503,47 @@ impl Args {
             config,
             config_name,
             dry: None,
-        })
+        };
+
+        if (now_args.config.is_some() && now_args.config_name.is_some()) {
+            let pre_settings = Self::from_toml(
+                now_args.config.as_ref().unwrap().to_str().unwrap(),
+                now_args.config_name.as_ref().unwrap(),
+                unique.clone(),
+            )
+            .unwrap();
+            if now_args.input == Args::default().input {
+                now_args.input = pre_settings.input;
+            }
+            if now_args.seperation == Args::default().seperation {
+                now_args.seperation = pre_settings.seperation;
+            }
+            if now_args.end_line == Args::default().end_line {
+                now_args.end_line = pre_settings.end_line;
+            }
+            if now_args.parse_mode == Args::default().parse_mode {
+                now_args.parse_mode = pre_settings.parse_mode;
+            }
+            if now_args.force_parse == Args::default().force_parse {
+                now_args.force_parse = pre_settings.force_parse;
+            }
+            if now_args.output_settings.output == Args::default().output_settings.output {
+                now_args.output_settings.output = pre_settings.output_settings.output;
+            }
+            if now_args.output_settings.export_color == Args::default().output_settings.export_color
+            {
+                now_args.output_settings.export_color = pre_settings.output_settings.export_color;
+            }
+            if now_args.export_subtable == Args::default().export_subtable {
+                now_args.export_subtable = pre_settings.export_subtable;
+            }
+            if now_args.dry == Args::default().dry {
+                now_args.dry = pre_settings.dry;
+            }
+            // config and config_name should not be kept as origin configuration file
+        }
+
+        return Ok(now_args);
     }
     pub fn to_toml(&self, _file: &str) -> Result<(), std::io::Error> {
         let mut file = std::fs::File::create(_file)?;
@@ -1150,77 +1207,102 @@ fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), String>
 mod read_tests {
     #[test]
     fn test_read_toml_simple() {
-        let test1 = super::Args::from_toml("./tests/config/simple.toml", "simple_config1").unwrap();
+        let test1 =
+            super::Args::from_toml("./tests/config/simple.toml", "simple_config1", None).unwrap();
         println!("test1 is\n {:#?}", test1);
-        let test2 = super::Args::from_toml("./tests/config/simple.toml", "simple_config2").unwrap();
+        let test2 =
+            super::Args::from_toml("./tests/config/simple.toml", "simple_config2", None).unwrap();
         println!("test2 is\n {:#?}", test2);
-        let test3 = super::Args::from_toml("./tests/config/simple.toml", "simple_config3").unwrap();
+        let test3 =
+            super::Args::from_toml("./tests/config/simple.toml", "simple_config3", None).unwrap();
         println!("test3 is\n {:#?}", test3);
     }
 
     #[test]
     fn test_read_toml_color() {
-        let test1 = super::Args::from_toml("./tests/config/color.toml", "color_config1").unwrap();
+        let test1 =
+            super::Args::from_toml("./tests/config/color.toml", "color_config1", None).unwrap();
         println!("color_test1 is\n {:#?}", test1);
-        let test2 = super::Args::from_toml("./tests/config/color.toml", "color_config2").unwrap();
+        let test2 =
+            super::Args::from_toml("./tests/config/color.toml", "color_config2", None).unwrap();
         println!("color_test2 is\n {:#?}", test2);
-        let test3 = super::Args::from_toml("./tests/config/color.toml", "color_config3").unwrap();
+        let test3 =
+            super::Args::from_toml("./tests/config/color.toml", "color_config3", None).unwrap();
         println!("color_test3 is\n {:#?}", test3);
     }
 
     #[test]
     fn test_read_toml_config() {
-        let test1 =
-            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config1")
-                .unwrap();
+        let test1 = super::Args::from_toml(
+            "./tests/config/configuration.toml",
+            "configuration_config1",
+            None,
+        )
+        .unwrap();
         println!("config_test1 is\n {:#?}", test1);
-        let test2 =
-            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config2")
-                .unwrap();
+        let test2 = super::Args::from_toml(
+            "./tests/config/configuration.toml",
+            "configuration_config2",
+            None,
+        )
+        .unwrap();
         println!("config_test2 is\n {:#?}", test2);
-        let test3 =
-            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config3")
-                .unwrap();
+        let test3 = super::Args::from_toml(
+            "./tests/config/configuration.toml",
+            "configuration_config3",
+            None,
+        )
+        .unwrap();
         println!("config_test3 is\n {:#?}", test3);
-        let test4 =
-            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config4")
-                .unwrap();
+        let test4 = super::Args::from_toml(
+            "./tests/config/configuration.toml",
+            "configuration_config4",
+            None,
+        )
+        .unwrap();
         println!("config_test4 is\n {:#?}", test3);
     }
 
     #[test]
     fn test_read_toml_excel() {
-        let test1 = super::Args::from_toml("./tests/config/excel.toml", "default_config1").unwrap();
+        let test1 =
+            super::Args::from_toml("./tests/config/excel.toml", "default_config1", None).unwrap();
         println!("excel_test1 is\n {:#?}", test1);
-        let test2 = super::Args::from_toml("./tests/config/excel.toml", "default_config2").unwrap();
+        let test2 =
+            super::Args::from_toml("./tests/config/excel.toml", "default_config2", None).unwrap();
         println!("excel_test2 is\n {:#?}", test2);
-        let test3 = super::Args::from_toml("./tests/config/excel.toml", "default_config3").unwrap();
+        let test3 =
+            super::Args::from_toml("./tests/config/excel.toml", "default_config3", None).unwrap();
         println!("excel_test3 is\n {:#?}", test3);
     }
     #[test]
     fn test_read_toml_multiple() {
         let test1 =
-            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config1").unwrap();
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config1", None)
+                .unwrap();
         println!("multiple_test1 is\n {:#?}", test1);
-
-        return;
         let test2 =
-            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config2").unwrap();
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config2", None)
+                .unwrap();
         println!("multiple_test2 is\n {:#?}", test2);
         let test3 =
-            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config3").unwrap();
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config3", None)
+                .unwrap();
         println!("multiple_test3 is\n {:#?}", test3);
     }
     #[test]
     fn test_read_toml_subtable() {
         let test1 =
-            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config1").unwrap();
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config1", None)
+                .unwrap();
         println!("subtable_test1 is\n {:#?}", test1);
         let test2 =
-            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config2").unwrap();
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config2", None)
+                .unwrap();
         println!("subtable_test2 is\n {:#?}", test2);
         let test3 =
-            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config3").unwrap();
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config3", None)
+                .unwrap();
         println!("subtable_test3 is\n {:#?}", test3);
     }
 }
@@ -1229,91 +1311,107 @@ mod create_tests {
 
     #[test]
     fn test_create_toml_simpl() {
-        let test3 = super::Args::from_toml("./tests/config/simple.toml", "simple_config3").unwrap();
+        let test3 =
+            super::Args::from_toml("./tests/config/simple.toml", "simple_config3", None).unwrap();
         println!("simple_config3 is\n {:#?}", test3);
         test3.to_toml("./tests/create_config/simple3.toml").unwrap();
         let _test3 =
-            super::Args::from_toml("./tests/create_config/simple3.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/simple3.toml", "my_config", None)
+                .unwrap();
         assert_eq!(test3, _test3);
     }
     #[test]
     fn test_create_toml_config() {
-        let test3 =
-            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config3")
-                .unwrap();
+        let test3 = super::Args::from_toml(
+            "./tests/config/configuration.toml",
+            "configuration_config3",
+            None,
+        )
+        .unwrap();
         println!("configuration_config3 is\n {:#?}", test3);
         test3.to_toml("./tests/create_config/config3.toml").unwrap();
         let _test3 =
-            super::Args::from_toml("./tests/create_config/config3.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/config3.toml", "my_config", None)
+                .unwrap();
         assert_eq!(test3, _test3);
     }
 
     #[test]
     fn test_create_toml_force() {
-        let test3 = super::Args::from_toml("./tests/config/force.toml", "force_config2").unwrap();
+        let test3 =
+            super::Args::from_toml("./tests/config/force.toml", "force_config2", None).unwrap();
         println!("force_config2 is\n {:#?}", test3);
         test3.to_toml("./tests/create_config/force3.toml").unwrap();
         let _test3 =
-            super::Args::from_toml("./tests/create_config/force3.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/force3.toml", "my_config", None).unwrap();
         assert_eq!(test3, _test3);
     }
     #[test]
     fn test_create_toml_color() {
-        let test2 = super::Args::from_toml("./tests/config/color.toml", "color_config2").unwrap();
+        let test2 =
+            super::Args::from_toml("./tests/config/color.toml", "color_config2", None).unwrap();
         println!("color_config2 is\n {:#?}", test2);
         test2.to_toml("./tests/create_config/color2.toml").unwrap();
         let _test2 =
-            super::Args::from_toml("./tests/create_config/color2.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/color2.toml", "my_config", None).unwrap();
         assert_eq!(test2, _test2);
 
-        let test3 = super::Args::from_toml("./tests/config/color.toml", "color_config3").unwrap();
+        let test3 =
+            super::Args::from_toml("./tests/config/color.toml", "color_config3", None).unwrap();
         println!("color_config3 is\n {:#?}", test3);
         test3.to_toml("./tests/create_config/color3.toml").unwrap();
         let _test3 =
-            super::Args::from_toml("./tests/create_config/color3.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/color3.toml", "my_config", None).unwrap();
         assert_eq!(test3, _test3);
     }
     #[test]
     fn test_create_toml_excel() {
-        let test3 = super::Args::from_toml("./tests/config/excel.toml", "default_config3").unwrap();
+        let test3 =
+            super::Args::from_toml("./tests/config/excel.toml", "default_config3", None).unwrap();
         println!("default_config3 is\n {:#?}", test3);
         test3.to_toml("./tests/create_config/excel3.toml").unwrap();
         let _test3 =
-            super::Args::from_toml("./tests/create_config/excel3.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/excel3.toml", "my_config", None).unwrap();
         assert_eq!(test3, _test3);
     }
     #[test]
     fn test_create_toml_subtable() {
         let test3 =
-            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config3").unwrap();
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config3", None)
+                .unwrap();
         println!("subtable_config3 is\n {:#?}", test3);
         test3
             .to_toml("./tests/create_config/subtable3.toml")
             .unwrap();
         let _test3 =
-            super::Args::from_toml("./tests/create_config/subtable3.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/subtable3.toml", "my_config", None)
+                .unwrap();
         assert_eq!(test3, _test3);
     }
     #[test]
     fn test_create_toml_multiple() {
         let test2 =
-            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config2").unwrap();
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config2", None)
+                .unwrap();
         println!("multiple_config2 is\n {:#?}", test2);
         test2
             .to_toml("./tests/create_config/multiple2.toml")
             .unwrap();
         let _test2 =
-            super::Args::from_toml("./tests/create_config/multiple2.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/multiple2.toml", "my_config", None)
+                .unwrap();
         assert_eq!(test2, _test2);
 
         let test3 =
-            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config3").unwrap();
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config3", None)
+                .unwrap();
         println!("multiple_config3 is\n {:#?}", test3);
         test3
             .to_toml("./tests/create_config/multiple3.toml")
             .unwrap();
         let _test3 =
-            super::Args::from_toml("./tests/create_config/multiple3.toml", "my_config").unwrap();
+            super::Args::from_toml("./tests/create_config/multiple3.toml", "my_config", None)
+                .unwrap();
         assert_eq!(test3, _test3);
     }
 }

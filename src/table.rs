@@ -33,7 +33,7 @@ impl Table {
     }
 
     /// Parse a string to a table, force the cell as string, assuming the string has '\n' as line seperator
-    pub fn from_string_force(s: String, seperation: char, end_line: &str) -> Table {
+    pub fn from_string_force(s: String, seperation: &str, end_line: &str) -> Table {
         let mut s = s;
         if !end_line.contains("\n") {
             // remove '\n' from input
@@ -195,10 +195,12 @@ impl Export for Table {
         println!("{}", self);
     }
 
+    //please use to_string_raw() to remove color information
+
     fn to_txt(&self, file: &str, seperation: char) -> Result<(), std::io::Error> {
         let mut s = String::new();
         for line in self.0.iter() {
-            s.push_str(line.to_string_format(seperation).as_str());
+            s.push_str(line.to_string_raw(seperation).as_str());
             s.push('\n');
         }
         std::fs::write(file, s)
@@ -210,6 +212,7 @@ impl Export for Table {
     // }
 
     fn to_excel(&self, file: &str, sheet: &str) -> Result<(), XlsxError> {
+        todo!();
         Ok(())
     }
 }
