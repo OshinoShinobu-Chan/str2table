@@ -72,8 +72,7 @@ fn main() {
                         .unwrap();
                 }
                 setting::OutputFormat::Exls => {
-                    todo!();
-                    //table.to_excel(file_path, args).unwrap();
+                    table.to_excel(file_path).unwrap();
                 }
                 setting::OutputFormat::Csv => {
                     todo!();

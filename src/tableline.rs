@@ -3,7 +3,7 @@
 use crate::setting::{self, Args, ForceType};
 use crate::tablecell::Tablecell;
 #[derive(Clone)]
-pub struct Tableline(Vec<Tablecell>);
+pub struct Tableline(pub Vec<Tablecell>);
 
 impl Tableline {
     pub fn new() -> Tableline {

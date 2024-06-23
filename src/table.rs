@@ -1,12 +1,16 @@
 //! # Table
 //! Include a vector of tablelines, representing a table.
+use std::any::Any;
+
 use crate::export::Export;
 use crate::setting;
 use crate::setting::Args;
 use crate::setting::OutputColor;
 use crate::tablecell::Tablecell;
+use crate::tablecellcore::Tablecellcore;
 use crate::tableline::Tableline;
 use xlsxwriter::prelude::*;
+use xlsxwriter::workbook;
 
 pub struct Table(Vec<Tableline>);
 
@@ -261,8 +265,29 @@ impl Export for Table {
     //     Ok(())
     // }
 
-    fn to_excel(&self, file: &str, sheet: &str) -> Result<(), XlsxError> {
-        todo!();
+    fn to_excel(&self, file: &str) -> Result<(), XlsxError> {
+        let workbook = Workbook::new(file)?;
+        let mut sheet1 = workbook.add_worksheet(None)?;
+        for (line_num, line) in self.0.iter().enumerate() {
+            for (col_num, cell) in line.0.iter().enumerate() {
+                match &cell.core {
+                    Tablecellcore::String(ref value) => {
+                        sheet1.write_string(line_num as u32, col_num as u16, value, None)?;
+                    }
+                    Tablecellcore::Int(value) => {
+                        sheet1.write_number(
+                            line_num as u32,
+                            col_num as u16,
+                            value.to_f64(),
+                            None,
+                        )?;
+                    }
+                    Tablecellcore::Float(value) => {
+                        sheet1.write_number(line_num as u32, col_num as u16, *value, None)?;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }

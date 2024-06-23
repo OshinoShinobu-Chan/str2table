@@ -13,5 +13,5 @@ pub trait Export {
     fn to_console(&self);
     fn to_txt(&self, file: &str, seperation: char) -> Result<(), std::io::Error>;
     // fn to_csv(&self, file: &str) -> Result<(), String>;
-    fn to_excel(&self, file: &str, sheet: &str) -> Result<(), XlsxError>;
+    fn to_excel(&self, file: &str) -> Result<(), XlsxError>;
 }
