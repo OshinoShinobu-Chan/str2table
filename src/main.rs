@@ -52,6 +52,12 @@ fn main() {
     }
 
     //subtable
+    match &args.export_subtable {
+        Some(subtable) => {
+            table = table.get_subtable(subtable.clone()).unwrap();
+        }
+        None => {}
+    }
 
     //output file
     match &args.output_settings.output {
