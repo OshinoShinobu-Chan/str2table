@@ -4,20 +4,20 @@
 //! also mix the two ways to set the setting.
 //!
 //! ## Configuration Options
-//! - `Input Path`: The path of input file, use console input if not set
+//! - `input`: The path of input file, use console input if not set
 //! - `seperation`: The seperation char of the table
-//! - `parse mode`: Whether to parse the cell to auto type, or force to string
-//! - `force parse`: Force a line or a column or a cell to be parsed to a specific type
-//! - `export path`: The path of file to export the table, enable when export mode is not console
-//! - `export color`: Set the color of the table when export, by line or by column, enable when export mode is console
-//! - `export subtable`: Export a subtable of the table
+//! - `parse_mode`: Whether to parse the cell to auto type, or force to string
+//! - `force_parse`: Force a line or a column or a cell to be parsed to a specific type
+//! - `output`: The path of file to export the table, enable when export mode is not console
+//! - `export_color`: Set the color of the table when export, by line or by column, enable when export mode is console
+//! - `export_subtable`: Export a subtable of the table
 //!
 //! ## Commandline Options
-//! - `-i`: Set the input path of the table, use console input if not set
-//! - `-s`/`--seperation`: Set the seperation pattern of the table, default is ` `, can be multiple chars
-//! - `-e`/`--end-line`: Set the pattern to end the line, default is `\n`
-//! - `-p`/`--parse-mode`: Set the parse mode of the table, default is `a`(auto), can be `a` or `s`
-//! - `-f`/`--force-parse`: Give the lines or columns with specific type.
+//! - `-i` `<INPUT>`: Set the input path of the table as `<INPUT>`, use console input if not set
+//! - `-s`/`--seperation` `<SEPERATION>`: Set the seperation pattern of the table as `<SEPERATION>`, default is ` `, can be multiple chars
+//! - `-e`/`--end-line` `<END_LINE>`: Set the pattern to end the line as `<END_LINE>`, default is `\n`
+//! - `-p`/`--parse-mode` `<PARSE_MODE>`: Set the parse mode of the table as `<PARSE_MODE>`, default is `a`(auto), can be `a` or `s`
+//! - `-f`/`--force-parse` `<FORCE_PARSE>`: Force the lines or columns in `<FORCE_PARSE>` to be parsed as specific type.
 //! Use number or range end with `l/c` to specify the line or column.
 //! And only one number or range include `l/c` is ok.
 //! Use `x-y` to specify the range, `x` and `y` are both included
@@ -27,20 +27,20 @@
 //! Panic if `l` and `c` are both used in this arguement.
 //! If the force type has error, then use auto_parse.
 //! Lines or columns that do not exist will be ignored.
-//! - `-o`/`--output`: Set the path of file to export the table, enable when export mode is not console.
+//! - `-o`/`--output` `<OUTPUT>`: Set the path of file to export the table as `<OUTPUT>`, enable when export mode is not console.
 //! Infer the format by the suffix of the file, support `csv`, `txt`, `exls`.
-//! - `-C`/`--export-color`: Set the color of the table by line, enable when export mode is console
+//! - `-C`/`--export-color` `<EXPORT_COLOR>`: Set the color of the table by line, enable when export mode is console
 //! Use number or range end with `l/c` and with color, default is black.
 //! `r` represents red, `g` represents green, `b` represents blue, `y` represents yellow, `x` represents grey
 //! `w` represents white.
 //! Follow the line color first if conflict.
-//! - `-S`/`--export-subtable`: Set the subtable to export, default is the whole table.
+//! - `-S`/`--export-subtable` `<EXPORT_SUBTABLE>`: Set the subtable to export, default is the whole table.
 //! Use number or range end with `l/c` to specify the line or column.
 //! Export the subtable of the cross parts of the lines and columns.
-//! - `-c`/`--config`: Set the configuration file to use and.
+//! - `-c`/`--config` `<EXPORT_PATH>`: Set the configuration file to use as `<EXPORT_PATH>`.
 //! Use the configuration from the commandline first if conflict.
-//! - `-n`/`--config-name`: Set the configuration name you want to use in the configuration file.
-//! - `-d`/`--dry`: Export the setting to the given toml file, but not run the program.
+//! - `-n`/`--config-name` `<EXPORT_NAME>`: Set the configuration name you want to use in the configuration file as `<EXPORT_NAME>`.
+//! - `-d`/`--dry` `<DRY>` : Export the setting to the given toml file `<DRY>` , but not run the program.
 //! - `-h`/`--help`: Print the help message.
 //!
 //! ### Example
@@ -224,7 +224,7 @@ pub struct Args {
     pub config_name: Option<String>,
 
     #[arg(short, long)]
-    /// Export the setting to the given toml file, but not run the program
+    /// Export the setting to the given toml file <DRY> , but not run the program
     pub dry: Option<String>,
 }
 

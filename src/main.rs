@@ -22,19 +22,21 @@ fn main() {
                 args.input.as_ref().unwrap().to_str().unwrap(),
                 args.seperation.as_str(),
                 args.end_line.as_str(),
-                args.parse_mode,
+                &args,
             )
         }
         None => {
-            table = read::read_from_io(
-                args.seperation.as_str(),
-                args.end_line.as_str(),
-                args.parse_mode,
-            );
+            table = read::read_from_io(args.seperation.as_str(), args.end_line.as_str(), &args);
         }
     }
 
     println!("{:#?}", args);
+
+    //dry
+    if args.dry.is_some() {
+        args.to_toml(args.dry.as_ref().unwrap()).unwrap();
+        return;
+    }
 
     //set color
     match &args.output_settings.export_color {
@@ -49,7 +51,7 @@ fn main() {
         None => {}
     }
 
-    //TODO : force parse
+    //TODO : subtable
 
     //output file
     match &args.output_settings.output {

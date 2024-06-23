@@ -1,0 +1,8 @@
+[my_config]
+input = "./test.txt"
+is_auto = true
+seperation = ","
+
+[my_config.export_color]
+column = [[0, 0, "g"]]
+line = [[2, 2, "r"]]
