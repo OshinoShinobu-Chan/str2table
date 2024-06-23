@@ -1,14 +1,14 @@
 [subtable_config1]
 input = "ls_small.txt"
-export_subtable.line = [2, 3, 4]
-export_subtable.column = [1, 9]
+export_subtable.line = [[2,2], [3,3], [4,4]]
+export_subtable.column = [[1,1], [9,9]]
 
 [subtable_config2]
 input = "ls_large.txt"
 export_subtable.line = [[2, 4], [6, 8]]
-export_subtable.column = [1, 9]
+export_subtable.column = [[1,1], [9,9]]
 
 [subtable_config3]
 input = "pip.txt"
-export_subtable.line = [[1, 10], 12]
-export_subtable.column = [1, 2]
+export_subtable.line = [[1, 10], [12,12]]
+export_subtable.column = [[1,1], [2,2]]

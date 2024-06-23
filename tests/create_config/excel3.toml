@@ -1,0 +1,5 @@
+[my_config]
+export_path = "./data/pip.xlsx"
+input = "pip.txt"
+is_auto = true
+seperation = " "

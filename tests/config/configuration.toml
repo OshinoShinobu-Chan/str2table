@@ -1,15 +1,15 @@
 [configuration_config1]
 input = "ls_small.txt"
-configuration = ["./color.toml", "color_config2"]
+configuration = ["./tests/config/color.toml", "color_config2"]
 
 [configuration_config2]
 input = "ls_large.txt"
-configuration = ["./multiple.toml", "multiple_config1"]
+configuration = ["./tests/config/multiple.toml", "multiple_config1"]
 
 [configuration_config3]
 input = "pip.txt"
-configuration = [".", "configuration_config4"]
+configuration = ["./tests/config/configuration.toml", "configuration_config4"]
 
 [configuration_config4]
 input = "pip.txt"
-configuration = ["./force.toml", "force_config3"]
+configuration = ["./tests/config/force.toml", "force_config3"]

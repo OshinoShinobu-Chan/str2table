@@ -38,7 +38,7 @@ impl Tableline {
     }
 
     /// Parse a string to a tableline linke ```from_string()``` but force the cell as string
-    pub fn from_string_force(s: String, seperation: char) -> Tableline {
+    pub fn from_string_force(s: String, seperation: &str) -> Tableline {
         let s = s.as_str().trim();
         let cells: Vec<Tablecell> = s
             .split(seperation)
@@ -95,6 +95,17 @@ impl Tableline {
         let mut s = String::new();
         for cell in self.0.iter() {
             s.push_str(cell.to_string().as_str());
+            s.push(seperation);
+            s.push(' ');
+        }
+        s
+    }
+
+    /// convert a tableline to string without color info
+    pub fn to_string_raw(&self, seperation: char) -> String {
+        let mut s = String::new();
+        for cell in self.0.iter() {
+            s.push_str(cell.core.to_string().as_str());
             s.push(seperation);
             s.push(' ');
         }

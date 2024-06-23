@@ -1,6 +1,6 @@
 [error_config1]
 input = "ls_small.txt"
-output = "output.a"
+export_path = "output.a"
 
 [error_config2]
 input = "ls_large.txt"
@@ -51,3 +51,7 @@ configuration = [".", "error_config13"]
 
 [error_config14]
 input = "42.txt"
+
+[error_self_config]
+input = "pip.txt"
+configuration = ["./tests/config/error.toml", "error_self_config"]
