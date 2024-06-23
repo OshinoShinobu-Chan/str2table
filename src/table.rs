@@ -143,24 +143,20 @@ impl Table {
     }
 
     /// Get subtable from the table
-    pub fn get_subtable(
-        self,
-        (start_row, start_col): (usize, usize),
-        (end_row, end_col): (usize, usize),
-    ) -> Option<Table> {
-        if start_row >= self.0.len() || end_row >= self.0.len() || end_row < start_row {
-            return None;
-        }
-        let mut subtable = Table::new();
-        for i in start_row..=end_row {
-            if start_col >= self.0[i].len() || end_col >= self.0[i].len() || end_col < start_col {
-                subtable.push_line(Tableline::new());
-                continue;
+    pub fn get_subtable(self, (lines, columns): (Vec<usize>, Vec<usize>)) -> Option<Table> {
+        let mut table = Table::new();
+        for line in lines {
+            if let Some(line) = self.get_line(line) {
+                let mut new_line = Tableline::new();
+                for column in &columns {
+                    if let Some(cell) = line.get_cell(*column) {
+                        new_line.push_cell(cell.clone());
+                    }
+                }
+                table.push_line(new_line);
             }
-            let line = self.0[i].get_cells(start_col, end_col).unwrap();
-            subtable.push_line(Tableline::from_vec(line.to_vec()));
         }
-        Some(subtable)
+        Some(table)
     }
 
     /// Get the length of longest row of the table
