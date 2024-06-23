@@ -133,7 +133,6 @@ pub enum ParseMode {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ForceType {
     S,
-    U,
     I,
     F,
 }
@@ -344,7 +343,6 @@ impl Args {
                 let t = i[2].as_str().expect("Invalid force parse");
                 let t = match t {
                     "s" => ForceType::S,
-                    "u" => ForceType::U,
                     "i" => ForceType::I,
                     "f" => ForceType::F,
                     _ => panic!("Invalid force parse"),
@@ -620,7 +618,6 @@ impl Args {
                 v.push(toml::Value::Integer(*i as i64));
                 match t {
                     ForceType::S => v.push(toml::Value::String('s'.to_string())),
-                    ForceType::U => v.push(toml::Value::String('u'.to_string())),
                     ForceType::I => v.push(toml::Value::String('i'.to_string())),
                     ForceType::F => v.push(toml::Value::String('f'.to_string())),
                 }
@@ -777,7 +774,6 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
 
             match last {
                 Some('s') => t = ForceType::S,
-                Some('u') => t = ForceType::U,
                 Some('i') => t = ForceType::I,
                 Some('f') => t = ForceType::F,
                 _ => {
@@ -860,7 +856,6 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, LineColumn)
 
             match last {
                 Some('s') => t = ForceType::S,
-                Some('u') => t = ForceType::U,
                 Some('i') => t = ForceType::I,
                 Some('f') => t = ForceType::F,
                 _ => {

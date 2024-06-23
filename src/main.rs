@@ -51,7 +51,7 @@ fn main() {
         None => {}
     }
 
-    //TODO : subtable
+    //subtable
 
     //output file
     match &args.output_settings.output {

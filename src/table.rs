@@ -1,6 +1,8 @@
 //! # Table
 //! Include a vector of tablelines, representing a table.
 use crate::export::Export;
+use crate::setting;
+use crate::setting::Args;
 use crate::setting::OutputColor;
 use crate::tablecell::Tablecell;
 use crate::tableline::Tableline;
@@ -14,6 +16,58 @@ impl Table {
     }
 
     pub fn from_vec(lines: Vec<Tableline>) -> Table {
+        Table(lines)
+    }
+
+    ///Parse a string to a table with the given force parse rule
+    pub fn from_string_with_force_parse(
+        s: String,
+        seperation: &str,
+        end_line: &str,
+        args: &Args,
+    ) -> Table {
+        let mut s = s;
+        if !end_line.contains("\n") {
+            // remove '\n' from input
+            s = s.replace("\n", "");
+        }
+
+        let mut lines: Vec<Tableline> = match args.force_parse.as_ref().unwrap().1 {
+            setting::LineColumn::Line => s
+                .split(end_line)
+                .enumerate()
+                .map(|(line_num, line)| {
+                    let exists = args
+                        .force_parse
+                        .as_ref()
+                        .unwrap()
+                        .0
+                        .iter()
+                        .find(|(a, tmp)| *a == line_num);
+                    if exists.is_some() {
+                        Tableline::from_string_with_force_parse_line(
+                            line.to_string(),
+                            seperation,
+                            exists.unwrap().1,
+                        )
+                    } else {
+                        Tableline::from_string(line.to_string(), seperation)
+                    }
+                })
+                .collect(),
+            setting::LineColumn::Column => s
+                .split(end_line)
+                .enumerate()
+                .map(|(id, line)| {
+                    Tableline::from_string_with_force_parse_column(
+                        line.to_string(),
+                        seperation,
+                        args,
+                    )
+                })
+                .collect(),
+        };
+        lines.retain(|line| line.len() > 0);
         Table(lines)
     }
 

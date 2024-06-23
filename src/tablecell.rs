@@ -21,6 +21,18 @@ impl Tablecell {
             color: OutputColor::default(),
         }
     }
+    ///
+    pub fn from_type(value: String, force_type: crate::setting::ForceType) -> Self {
+        Tablecell {
+            core: match force_type {
+                crate::setting::ForceType::S => Tablecellcore::force_as_string(&value),
+                crate::setting::ForceType::I => Tablecellcore::force_as_int(&value).unwrap(),
+                crate::setting::ForceType::F => Tablecellcore::force_as_float(&value).unwrap(),
+            },
+
+            color: OutputColor::default(),
+        }
+    }
 
     /// Create a new Tablecell with a string value, force it to be string and set color to default (black)
     pub fn force_as_string(value: String) -> Self {

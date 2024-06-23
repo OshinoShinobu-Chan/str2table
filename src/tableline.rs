@@ -1,6 +1,6 @@
 //! # Tableline
 //! Include a vector of tablecells, representing a line of a table.
-use crate::setting::Args;
+use crate::setting::{self, Args, ForceType};
 use crate::tablecell::Tablecell;
 #[derive(Clone)]
 pub struct Tableline(Vec<Tablecell>);
@@ -33,6 +33,52 @@ impl Tableline {
             .map(|cell| cell.trim())
             .filter(|cell| !cell.is_empty())
             .map(|cell| Tablecell::auto_from(cell.to_string()))
+            .collect();
+        Tableline(cells)
+    }
+
+    /// force parce line
+    pub fn from_string_with_force_parse_line(
+        s: String,
+        seperation: &str,
+        force_type: setting::ForceType,
+    ) -> Tableline {
+        let s = s.as_str().trim();
+        let cells: Vec<Tablecell> = s
+            .split(seperation)
+            .map(|cell| cell.trim())
+            .filter(|cell| !cell.is_empty())
+            .map(|cell| Tablecell::from_type(cell.to_string(), force_type))
+            .collect();
+        Tableline(cells)
+    }
+
+    /// force parse Column
+    pub fn from_string_with_force_parse_column(
+        s: String,
+        seperation: &str,
+        args: &Args,
+    ) -> Tableline {
+        let s = s.as_str().trim();
+        let cells: Vec<Tablecell> = s
+            .split(seperation)
+            .enumerate()
+            .map(|(column_num, cell)| (column_num, cell.trim()))
+            .filter(|(column_num, cell)| !cell.is_empty())
+            .map(|(column_num, cell)| {
+                let exists = args
+                    .force_parse
+                    .as_ref()
+                    .unwrap()
+                    .0
+                    .iter()
+                    .find(|(a, tmp)| *a == column_num);
+                if exists.is_some() {
+                    Tablecell::from_type(cell.to_string(), exists.unwrap().1)
+                } else {
+                    Tablecell::auto_from(cell.to_string())
+                }
+            })
             .collect();
         Tableline(cells)
     }
