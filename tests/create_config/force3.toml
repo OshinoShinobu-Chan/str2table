@@ -1,0 +1,7 @@
+[my_config]
+input = "ls_large.txt"
+is_auto = true
+seperation = " "
+
+[my_config.force_parse]
+column = [[2, 2, "s"], [5, 5, "s"], [7, 7, "i"]]

@@ -1,0 +1,5 @@
+[my_config]
+configuration = [".", "configuration_config4"]
+input = "pip.txt"
+is_auto = true
+seperation = " "

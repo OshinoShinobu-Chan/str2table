@@ -2,22 +2,14 @@
 input = "ls_small.txt"
 seperation = " "
 is_auto = true
-force_parse.line = []
-export_color.line = []
-export_color.column = []
 
 [simple_config2]
 input = "ls_large.txt"
 seperation = " "
 is_auto = true
-force_parse.column = []
-export_color.line = []
-export_color.column = []
 
 [simple_config3]
 input = "pip.txt"
 seperation = " "
 is_auto = true
-force_parse.line = []
-export_color.line = []
-export_color.column = []
+export_path = "a.xlsx"

@@ -70,7 +70,7 @@
 //! # if set to false, force all the data to str
 //! is_auto = true
 //!
-//! # force parse line, use a array, default is []
+//! # force parse line, use an array, default is []
 //! # the following example means, force the first line to string,
 //! # the second line to fourth line to integer
 //! force_parse.line = [
@@ -78,7 +78,7 @@
 //! [2, 4, 'i'],
 //! ]
 //!
-//! # force parse column, use a array, default is [], same as line
+//! # force parse column, use an array, default is [], same as line
 //! # this can't be used with force_parse.line
 //! # force_parse.column = [
 //! # [1, 1, 's'],
@@ -86,9 +86,9 @@
 //! # ]
 //!
 //! # export path, use console output if not set
-//! export = "output.txt"
+//! export_path = "output.txt"
 //!
-//! # export color by line, use a array, default is []
+//! # export color by line, use an array, default is []
 //! # the following example means, set the first line to red,
 //! # the second line to fourth line to green, the third line to blue
 //! export_color.line = [
@@ -96,33 +96,21 @@
 //! [2, 4, 'g'],
 //! ]
 //!
-//! # export color by column, use a array, default is [], same as line
+//! # export color by column, use an array, default is [], same as line
 //! export_color.column = [
 //! [1, 1, 'r'],
 //! [2, 2, 'g'],
 //! ]
 //!
-//! # export subtable line, use a array, default export the whole line
+//! # export subtable line, use an array, default export the whole line
 //! # you can also use an array of two to represent a range
 //! # the following example means, export the first line and third line
-//! export_subtable.line = [1, 3]
+//! export_subtable.line = [[1, 1] , [3, 3] ]
 //!
-//! # export subtable column, use a array, default export the whole column
+//! # export subtable column, use an array, default export the whole column
 //! # you can also use an array of two to represent a range
-//! # the following example means, export the first column and third column
-//! export_subtable.column = [1, 3]
-//!
-//! # not export subtable line, use a array, default is [] means export the whole column
-//! # you can also use an array of two to represent a range
-//! # the following example means, not export the first and third line
-//! # can't set it with export_subtable.line
-//! # not_export_subtable.line = [1, 3]
-//!
-//! # not export subtable column, use a array, default is [] means export the whole line
-//! # you can also use an array of two to represent a range
-//! # the following example means, not export the first and third column
-//! # can't set it with export_subtable.column
-//! # not_export_subtable.column = [1, 3]
+//! # the following example means, export the first to second columns and fourth column
+//! export_subtable.column = [[1, 2], [4, 4]]
 //!
 //! # use configuration from other configuration module, use config from this configuration first if conflict
 //! # if you use . as path, then find the conf_name in this file
@@ -131,13 +119,16 @@
 
 use clap::Parser;
 use clap::*;
+use std::io::Read;
+use std::io::Write;
+use toml::Table;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, ValueEnum)]
 pub enum ParseMode {
     A,
     S,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ForceType {
     S,
     U,
@@ -151,14 +142,14 @@ pub enum LineColumn {
     Column,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OutputFormat {
     Csv,
     Txt,
     Exls,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OutputColor {
     Black,
     Red,
@@ -190,7 +181,7 @@ impl Default for OutputColor {
 }
 
 /// Commandline args
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, PartialEq)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     #[arg(short, long, value_hint = clap::ValueHint::FilePath)]
@@ -235,7 +226,7 @@ pub struct Args {
     pub dry: Option<String>,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, PartialEq)]
 #[group(multiple = false)]
 pub struct OutputSettings {
     #[arg(short, long, value_parser = validate_output, value_hint = clap::ValueHint::FilePath)]
@@ -348,7 +339,7 @@ impl Args {
         }
 
         let output = conf
-            .get("output")
+            .get("export_path")
             .map(|s| s.as_str().expect("Invalid output path").to_string())
             .map(|v| {
                 let suffix = v.split('.').last().expect("Invalid output path");
@@ -498,7 +489,171 @@ impl Args {
         })
     }
     pub fn to_toml(&self, _file: &str) -> Result<(), std::io::Error> {
-        // TODO
+        let mut file = std::fs::File::create(_file)?;
+
+        //input
+        let mut base_table = Table::new();
+        base_table.insert(
+            "input".to_owned(),
+            toml::Value::String(self.input.as_ref().unwrap().to_str().unwrap().to_string()),
+        );
+
+        //seperation
+        base_table.insert(
+            "seperation".to_owned(),
+            toml::Value::String(self.seperation.clone()),
+        );
+
+        //end_line
+        if (self.end_line != "\n") {
+            base_table.insert(
+                "end_line".to_owned(),
+                toml::Value::String(self.end_line.clone()),
+            );
+        }
+
+        //is_auto
+        base_table.insert(
+            "is_auto".to_owned(),
+            toml::Value::Boolean(self.parse_mode == ParseMode::A),
+        );
+
+        //export_subtable
+        if let Some((line, column)) = &self.export_subtable {
+            let mut subtable_table = Table::new();
+            let mut line_table = Vec::new();
+            let mut column_table = Vec::new();
+            for l in line {
+                let mut v = Vec::new();
+                v.push(toml::Value::Integer(*l as i64));
+                v.push(toml::Value::Integer(*l as i64));
+                line_table.push(toml::Value::Array(v));
+            }
+            for c in column {
+                let mut v = Vec::new();
+                v.push(toml::Value::Integer(*c as i64));
+                v.push(toml::Value::Integer(*c as i64));
+                column_table.push(toml::Value::Array(v));
+            }
+            let mut is_empty = true;
+            if (!line_table.is_empty()) {
+                subtable_table.insert("line".to_owned(), toml::Value::Array(line_table));
+                is_empty = false;
+            }
+            if (!column_table.is_empty()) {
+                subtable_table.insert("column".to_owned(), toml::Value::Array(column_table));
+                is_empty = false;
+            }
+            if (!is_empty) {
+                base_table.insert(
+                    "export_subtable".to_owned(),
+                    toml::Value::Table(subtable_table),
+                );
+            }
+        }
+
+        //force_parse
+        if let Some((force_parse, lc)) = &self.force_parse {
+            let mut forsce_table = Table::new();
+            let mut line = Vec::new();
+            let mut column = Vec::new();
+            for (i, t) in force_parse {
+                let mut v = Vec::new();
+                v.push(toml::Value::Integer(*i as i64));
+                v.push(toml::Value::Integer(*i as i64));
+                match t {
+                    ForceType::S => v.push(toml::Value::String('s'.to_string())),
+                    ForceType::U => v.push(toml::Value::String('u'.to_string())),
+                    ForceType::I => v.push(toml::Value::String('i'.to_string())),
+                    ForceType::F => v.push(toml::Value::String('f'.to_string())),
+                }
+                if *lc == LineColumn::Line {
+                    line.push(toml::Value::Array(v));
+                } else {
+                    column.push(toml::Value::Array(v));
+                }
+            }
+            if (!line.is_empty()) {
+                forsce_table.insert("line".to_owned(), toml::Value::Array(line));
+                base_table.insert("force_parse".to_owned(), toml::Value::Table(forsce_table));
+            } else if (!column.is_empty()) {
+                forsce_table.insert("column".to_owned(), toml::Value::Array(column));
+                base_table.insert("force_parse".to_owned(), toml::Value::Table(forsce_table));
+            }
+        }
+
+        //export_path
+        if let Some((path, _)) = &self.output_settings.output {
+            base_table.insert("export_path".to_owned(), toml::Value::String(path.clone()));
+        }
+
+        //export_color
+        if let Some((line, column)) = &self.output_settings.export_color {
+            let mut color_table = Table::new();
+            let mut line_color = Vec::new();
+            let mut column_color = Vec::new();
+            for (i, c) in line {
+                let mut v = Vec::new();
+                //TODO:先把每行单独一个，不搞范围
+                v.push(toml::Value::Integer(*i as i64));
+                v.push(toml::Value::Integer(*i as i64));
+                match c {
+                    OutputColor::Black => v.push(toml::Value::String('b'.to_string())),
+                    OutputColor::Red => v.push(toml::Value::String('r'.to_string())),
+                    OutputColor::Green => v.push(toml::Value::String('g'.to_string())),
+                    OutputColor::Blue => v.push(toml::Value::String('b'.to_string())),
+                    OutputColor::Yellow => v.push(toml::Value::String('y'.to_string())),
+                    OutputColor::Grey => v.push(toml::Value::String('x'.to_string())),
+                    OutputColor::White => v.push(toml::Value::String('w'.to_string())),
+                }
+                line_color.push(toml::Value::Array(v));
+            }
+            for (i, c) in column {
+                let mut v = Vec::new();
+                v.push(toml::Value::Integer(*i as i64));
+                v.push(toml::Value::Integer(*i as i64));
+                match c {
+                    OutputColor::Black => v.push(toml::Value::String('b'.to_string())),
+                    OutputColor::Red => v.push(toml::Value::String('r'.to_string())),
+                    OutputColor::Green => v.push(toml::Value::String('g'.to_string())),
+                    OutputColor::Blue => v.push(toml::Value::String('b'.to_string())),
+                    OutputColor::Yellow => v.push(toml::Value::String('y'.to_string())),
+                    OutputColor::Grey => v.push(toml::Value::String('x'.to_string())),
+                    OutputColor::White => v.push(toml::Value::String('w'.to_string())),
+                }
+                column_color.push(toml::Value::Array(v));
+            }
+            let mut is_empty = true;
+            if (!line_color.is_empty()) {
+                color_table.insert("line".to_owned(), toml::Value::Array(line_color));
+                is_empty = false;
+            }
+            if (!column_color.is_empty()) {
+                color_table.insert("column".to_owned(), toml::Value::Array(column_color));
+                is_empty = false;
+            }
+            if (!is_empty) {
+                base_table.insert("export_color".to_owned(), toml::Value::Table(color_table));
+            }
+        }
+
+        //configuration
+        {
+            let mut tmp_config: Vec<toml::Value> = Vec::new();
+            if self.config.is_some() {
+                tmp_config.push(toml::Value::String(
+                    self.config.as_ref().unwrap().to_str().unwrap().to_owned(),
+                ));
+                tmp_config.push(toml::Value::String(
+                    self.config_name.as_ref().unwrap().to_owned(),
+                ));
+                base_table.insert("configuration".to_owned(), toml::Value::Array(tmp_config));
+            }
+        }
+
+        let mut root_table = Table::new();
+        root_table.insert("my_config".to_owned(), toml::Value::Table(base_table));
+        file.write_all(&root_table.to_string().as_bytes())?;
         Ok(())
     }
 }
@@ -992,10 +1147,173 @@ fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), String>
     Ok((line, column))
 }
 
-mod tests {
+mod read_tests {
     #[test]
-    fn test_read_toml() {
-        // super::Args::from_toml("./tests/config/simple.toml", "simple_config5").unwrap();
-        // TODO
+    fn test_read_toml_simple() {
+        let test1 = super::Args::from_toml("./tests/config/simple.toml", "simple_config1").unwrap();
+        println!("test1 is\n {:#?}", test1);
+        let test2 = super::Args::from_toml("./tests/config/simple.toml", "simple_config2").unwrap();
+        println!("test2 is\n {:#?}", test2);
+        let test3 = super::Args::from_toml("./tests/config/simple.toml", "simple_config3").unwrap();
+        println!("test3 is\n {:#?}", test3);
+    }
+
+    #[test]
+    fn test_read_toml_color() {
+        let test1 = super::Args::from_toml("./tests/config/color.toml", "color_config1").unwrap();
+        println!("color_test1 is\n {:#?}", test1);
+        let test2 = super::Args::from_toml("./tests/config/color.toml", "color_config2").unwrap();
+        println!("color_test2 is\n {:#?}", test2);
+        let test3 = super::Args::from_toml("./tests/config/color.toml", "color_config3").unwrap();
+        println!("color_test3 is\n {:#?}", test3);
+    }
+
+    #[test]
+    fn test_read_toml_config() {
+        let test1 =
+            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config1")
+                .unwrap();
+        println!("config_test1 is\n {:#?}", test1);
+        let test2 =
+            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config2")
+                .unwrap();
+        println!("config_test2 is\n {:#?}", test2);
+        let test3 =
+            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config3")
+                .unwrap();
+        println!("config_test3 is\n {:#?}", test3);
+        let test4 =
+            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config4")
+                .unwrap();
+        println!("config_test4 is\n {:#?}", test3);
+    }
+
+    #[test]
+    fn test_read_toml_excel() {
+        let test1 = super::Args::from_toml("./tests/config/excel.toml", "default_config1").unwrap();
+        println!("excel_test1 is\n {:#?}", test1);
+        let test2 = super::Args::from_toml("./tests/config/excel.toml", "default_config2").unwrap();
+        println!("excel_test2 is\n {:#?}", test2);
+        let test3 = super::Args::from_toml("./tests/config/excel.toml", "default_config3").unwrap();
+        println!("excel_test3 is\n {:#?}", test3);
+    }
+    #[test]
+    fn test_read_toml_multiple() {
+        let test1 =
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config1").unwrap();
+        println!("multiple_test1 is\n {:#?}", test1);
+
+        return;
+        let test2 =
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config2").unwrap();
+        println!("multiple_test2 is\n {:#?}", test2);
+        let test3 =
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config3").unwrap();
+        println!("multiple_test3 is\n {:#?}", test3);
+    }
+    #[test]
+    fn test_read_toml_subtable() {
+        let test1 =
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config1").unwrap();
+        println!("subtable_test1 is\n {:#?}", test1);
+        let test2 =
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config2").unwrap();
+        println!("subtable_test2 is\n {:#?}", test2);
+        let test3 =
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config3").unwrap();
+        println!("subtable_test3 is\n {:#?}", test3);
+    }
+}
+
+mod create_tests {
+
+    #[test]
+    fn test_create_toml_simpl() {
+        let test3 = super::Args::from_toml("./tests/config/simple.toml", "simple_config3").unwrap();
+        println!("simple_config3 is\n {:#?}", test3);
+        test3.to_toml("./tests/create_config/simple3.toml").unwrap();
+        let _test3 =
+            super::Args::from_toml("./tests/create_config/simple3.toml", "my_config").unwrap();
+        assert_eq!(test3, _test3);
+    }
+    #[test]
+    fn test_create_toml_config() {
+        let test3 =
+            super::Args::from_toml("./tests/config/configuration.toml", "configuration_config3")
+                .unwrap();
+        println!("configuration_config3 is\n {:#?}", test3);
+        test3.to_toml("./tests/create_config/config3.toml").unwrap();
+        let _test3 =
+            super::Args::from_toml("./tests/create_config/config3.toml", "my_config").unwrap();
+        assert_eq!(test3, _test3);
+    }
+
+    #[test]
+    fn test_create_toml_force() {
+        let test3 = super::Args::from_toml("./tests/config/force.toml", "force_config2").unwrap();
+        println!("force_config2 is\n {:#?}", test3);
+        test3.to_toml("./tests/create_config/force3.toml").unwrap();
+        let _test3 =
+            super::Args::from_toml("./tests/create_config/force3.toml", "my_config").unwrap();
+        assert_eq!(test3, _test3);
+    }
+    #[test]
+    fn test_create_toml_color() {
+        let test2 = super::Args::from_toml("./tests/config/color.toml", "color_config2").unwrap();
+        println!("color_config2 is\n {:#?}", test2);
+        test2.to_toml("./tests/create_config/color2.toml").unwrap();
+        let _test2 =
+            super::Args::from_toml("./tests/create_config/color2.toml", "my_config").unwrap();
+        assert_eq!(test2, _test2);
+
+        let test3 = super::Args::from_toml("./tests/config/color.toml", "color_config3").unwrap();
+        println!("color_config3 is\n {:#?}", test3);
+        test3.to_toml("./tests/create_config/color3.toml").unwrap();
+        let _test3 =
+            super::Args::from_toml("./tests/create_config/color3.toml", "my_config").unwrap();
+        assert_eq!(test3, _test3);
+    }
+    #[test]
+    fn test_create_toml_excel() {
+        let test3 = super::Args::from_toml("./tests/config/excel.toml", "default_config3").unwrap();
+        println!("default_config3 is\n {:#?}", test3);
+        test3.to_toml("./tests/create_config/excel3.toml").unwrap();
+        let _test3 =
+            super::Args::from_toml("./tests/create_config/excel3.toml", "my_config").unwrap();
+        assert_eq!(test3, _test3);
+    }
+    #[test]
+    fn test_create_toml_subtable() {
+        let test3 =
+            super::Args::from_toml("./tests/config/subtable.toml", "subtable_config3").unwrap();
+        println!("subtable_config3 is\n {:#?}", test3);
+        test3
+            .to_toml("./tests/create_config/subtable3.toml")
+            .unwrap();
+        let _test3 =
+            super::Args::from_toml("./tests/create_config/subtable3.toml", "my_config").unwrap();
+        assert_eq!(test3, _test3);
+    }
+    #[test]
+    fn test_create_toml_multiple() {
+        let test2 =
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config2").unwrap();
+        println!("multiple_config2 is\n {:#?}", test2);
+        test2
+            .to_toml("./tests/create_config/multiple2.toml")
+            .unwrap();
+        let _test2 =
+            super::Args::from_toml("./tests/create_config/multiple2.toml", "my_config").unwrap();
+        assert_eq!(test2, _test2);
+
+        let test3 =
+            super::Args::from_toml("./tests/config/multiple.toml", "multiple_config3").unwrap();
+        println!("multiple_config3 is\n {:#?}", test3);
+        test3
+            .to_toml("./tests/create_config/multiple3.toml")
+            .unwrap();
+        let _test3 =
+            super::Args::from_toml("./tests/create_config/multiple3.toml", "my_config").unwrap();
+        assert_eq!(test3, _test3);
     }
 }

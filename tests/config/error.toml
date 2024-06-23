@@ -1,6 +1,6 @@
 [error_config1]
 input = "ls_small.txt"
-output = "output.a"
+export_path = "output.a"
 
 [error_config2]
 input = "ls_large.txt"
