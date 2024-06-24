@@ -30,7 +30,7 @@ fn main() {
         }
     }
 
-    println!("{:#?}", args);
+    //println!("{:#?}", args);
 
     //dry
     if args.dry.is_some() {
@@ -41,11 +41,12 @@ fn main() {
     //set color
     match &args.output_settings.export_color {
         Some(export_color) => {
-            for ((line_num, color)) in export_color.0.iter() {
-                table.set_color_line(*line_num, *color);
-            }
             for ((column_num, color)) in export_color.1.iter() {
                 table.set_color_column(*column_num, *color);
+            }
+
+            for ((line_num, color)) in export_color.0.iter() {
+                table.set_color_line(*line_num, *color);
             }
         }
         None => {}
