@@ -1,0 +1,9 @@
+[package]
+name = "input"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core = { path = "../core" }
+clap = { version = "4.5.4", features = ["derive"] }
+toml = "0.8.14"

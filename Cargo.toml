@@ -1,10 +1,2 @@
-[package]
-name = "str2table"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-clap = { version = "4.5.4", features = ["derive"] }
-ibig = "0.3.6"
-xlsxwriter = "0.6.1"
-toml = "0.8.14"
+[workspace]
+members = ["core", "input"]

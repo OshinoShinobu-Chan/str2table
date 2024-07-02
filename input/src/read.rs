@@ -2,9 +2,9 @@
 //! This module used to read input from stdin or file, and parse it to table
 use std::io::stdin;
 
-use crate::setting::Args;
-use crate::setting::ParseMode;
-use crate::table::Table;
+use core::setting::Args;
+use core::setting::ParseMode;
+use core::table::Table;
 /// Read a table from stdin with given seperation char
 pub fn read_from_io(seperation: &str, end_line: &str, args: &Args) -> Table {
     let mut s = String::new();

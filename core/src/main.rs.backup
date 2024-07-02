@@ -1,7 +1,5 @@
 // #[deny(warnings)]
 mod export;
-mod read;
-mod setting;
 mod table;
 mod tablecell;
 mod tablecellcore;
@@ -11,7 +9,9 @@ extern crate clap;
 use std::io::Write;
 
 use clap::Parser;
-use setting::Args;
+use input::read;
+use input::setting;
+use input::setting::Args;
 
 fn main() {
     let args = Args::parse();
