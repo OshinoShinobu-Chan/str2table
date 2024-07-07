@@ -1,6 +1,6 @@
 /* Str2table core crate
  * Copyright (C) 2024 Peng Zijun, Xia Tingxuan
- *
+ * --------------------------------------------------------
  * This file is part of Str2table.
  * Foobar is free software: you can redistribute it and/or modify it under the terms of
  * the GNU General Public License as published by the Free Software Foundation, either
