@@ -16,11 +16,11 @@
 //! This module used to read input from stdin or file, and parse it to table
 use std::io::stdin;
 
-use core::setting::Args;
+use core::setting::InputArgs;
 use core::setting::ParseMode;
 use core::table::Table;
 /// Read a table from stdin with given seperation char
-pub fn read_from_io(seperation: &str, end_line: &str, args: &Args) -> Table {
+pub fn read_from_io(seperation: &str, end_line: &str, args: &InputArgs) -> Table {
     let mut s = String::new();
     let lines = stdin().lines();
     for line in lines {
@@ -38,7 +38,7 @@ pub fn read_from_io(seperation: &str, end_line: &str, args: &Args) -> Table {
 }
 
 /// Read a table from file with given seperation char
-pub fn read_from_file(file: &str, seperation: &str, end_line: &str, args: &Args) -> Table {
+pub fn read_from_file(file: &str, seperation: &str, end_line: &str, args: &InputArgs) -> Table {
     let s = std::fs::read_to_string(file).unwrap();
     match args.parse_mode {
         ParseMode::A => Table::from_string(s, seperation, end_line),
@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn test_read_from_file() {
-        let table = read_from_file("test.txt", " ", "\n", &Args::default());
+        let table = read_from_file("test.txt", " ", "\n", &InputArgs::default());
         println!("{:?}", table);
     }
 }

@@ -14,17 +14,14 @@
 
 //! # Table
 //! Include a vector of tablelines, representing a table.
-use std::any::Any;
-
 use crate::export::Export;
 use crate::setting;
-use crate::setting::Args;
+use crate::setting::InputArgs;
 use crate::setting::OutputColor;
 use crate::tablecell::Tablecell;
 use crate::tablecellcore::Tablecellcore;
 use crate::tableline::Tableline;
 use xlsxwriter::prelude::*;
-use xlsxwriter::workbook;
 
 pub struct Table(Vec<Tableline>);
 
@@ -42,7 +39,7 @@ impl Table {
         s: String,
         seperation: &str,
         end_line: &str,
-        args: &Args,
+        args: &InputArgs,
     ) -> Table {
         let mut s = s;
         if !end_line.contains("\n") {
@@ -61,7 +58,7 @@ impl Table {
                         .unwrap()
                         .0
                         .iter()
-                        .find(|(a, tmp)| *a == line_num);
+                        .find(|(a, _tmp)| *a == line_num);
                     if exists.is_some() {
                         Tableline::from_string_with_force_parse_line(
                             line.to_string(),
@@ -76,7 +73,7 @@ impl Table {
             setting::LineColumn::Column => s
                 .split(end_line)
                 .enumerate()
-                .map(|(id, line)| {
+                .map(|(_id, line)| {
                     Tableline::from_string_with_force_parse_column(
                         line.to_string(),
                         seperation,

@@ -14,7 +14,7 @@
 
 //! # Tableline
 //! Include a vector of tablecells, representing a line of a table.
-use crate::setting::{self, Args, ForceType};
+use crate::setting::{self, InputArgs};
 use crate::tablecell::Tablecell;
 #[derive(Clone)]
 pub struct Tableline(pub Vec<Tablecell>);
@@ -71,14 +71,14 @@ impl Tableline {
     pub fn from_string_with_force_parse_column(
         s: String,
         seperation: &str,
-        args: &Args,
+        args: &InputArgs,
     ) -> Tableline {
         let s = s.as_str().trim();
         let cells: Vec<Tablecell> = s
             .split(seperation)
             .enumerate()
             .map(|(column_num, cell)| (column_num, cell.trim()))
-            .filter(|(column_num, cell)| !cell.is_empty())
+            .filter(|(_column_num, cell)| !cell.is_empty())
             .map(|(column_num, cell)| {
                 let exists = args
                     .force_parse
@@ -86,7 +86,7 @@ impl Tableline {
                     .unwrap()
                     .0
                     .iter()
-                    .find(|(a, tmp)| *a == column_num);
+                    .find(|(a, _tmp)| *a == column_num);
                 if exists.is_some() {
                     Tablecell::from_type(cell.to_string(), exists.unwrap().1)
                 } else {
