@@ -16,6 +16,7 @@
 //! Include enum called ```Tablecellcore``` represents a cell's value in a table,
 //! with some useful methods
 
+#[allow(unused_imports)]
 use ibig::{ibig, IBig};
 
 /// # Tablecellcore
