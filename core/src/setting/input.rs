@@ -12,8 +12,17 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
+use super::core::LineColumn;
+use crate::error::arg_error::{ArgError, ArgErrorKind};
+use crate::error::conflicts::Conflicts;
+use crate::error::keyword_missing::KeywordMissing;
+use crate::error::range_error::{RangeError, RangeErrorKind};
+use crate::error::{ErrorLevel, ErrorType};
 use clap::Parser;
 use clap::*;
+use once_cell::sync::Lazy;
+use regex::{Regex, RegexSet};
+use std::str::FromStr;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, ValueEnum)]
 /// A enum to specify the parse mode, `A` represents auto, `S` represents force to string.
@@ -29,6 +38,21 @@ pub enum ForceType {
     S,
     I,
     F,
+}
+
+impl FromStr for ForceType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "s" => Ok(ForceType::S),
+            "i" => Ok(ForceType::I),
+            "f" => Ok(ForceType::F),
+            "S" => Ok(ForceType::S),
+            "I" => Ok(ForceType::I),
+            "F" => Ok(ForceType::F),
+            _ => Err(()),
+        }
+    }
 }
 
 /// Commandline args
@@ -53,11 +77,6 @@ pub struct InputArgs {
     #[arg(short, long, value_parser = validate_force_parse)]
     /// Give the lines or columns with specific type.
     pub force_parse: Option<(Vec<(usize, ForceType)>, super::LineColumn)>,
-
-    #[arg(short = 'S', long, value_parser = validate_export_subtable)]
-    /// Use a number or range end with `l/c` to specify the line or column
-    /// Export the subtable of the cross parts of the lines and columns
-    pub export_subtable: Option<(Vec<usize>, Vec<usize>)>,
 }
 
 impl Default for InputArgs {
@@ -68,318 +87,246 @@ impl Default for InputArgs {
             end_line: "\n".to_string(),
             parse_mode: ParseMode::A,
             force_parse: None,
-            export_subtable: None,
         }
     }
 }
 
-fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, super::LineColumn), String> {
-    let parts = s.split(',');
-    let mut lc: Option<super::LineColumn> = None;
+fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, super::LineColumn), ArgError> {
+    // regex to check if input is valid
+    let regex_set = RegexSet::new(&[
+        // 0. correct format with a ragne
+        r"^[0-9]+-[0-9]+[lcLC][sifSIF]$",
+        // 1. correct format with a single number
+        r"^[0-9]+[lcLC][sifSIF]$",
+        // 2. wrong format with a wrong right side
+        r"^[0-9]+-.*[lcLC][sifSIF]$",
+        // 3. wrong format with a wrong left side
+        r"^.*-[0-9]+[lcLC][sifSIF]$",
+        // 4. wrong format with both side wrong
+        r"^.*-.*[lcLC][sifSIF]$",
+        // 5. wrong format with wrong number (single)
+        r"^.*[lcLC][sifSIF]$",
+        // 6. wrong format with wrong type (range)
+        r"^[0-9]+-[0-9]+[lcLC].*$",
+        // 7. wrong format with wrong type (single)
+        r"^[0-9]+[lcLC].*$",
+        // 8. wrong format with wrong line/column (range)
+        r"^[0-9]+-[0-9]+.*[sifSIF]$",
+        // 9. wrong format with wrong line/column (single)
+        r"^[0-9]+.*[sifSIF]$",
+    ])
+    .unwrap();
+
     let mut result: Vec<(usize, ForceType)> = Vec::new();
+    let mut linecolumn: Option<LineColumn> = None;
+
+    // split the target string into parts
+    let parts = s.split(',').map(|s| s.trim());
+
+    // track the location of the error part
+    let mut location = 0;
+
+    // iterate through the parts
     for part in parts {
-        // if part is a range
-        if part.contains('-') {
-            let range: Vec<&str> = part.split('-').collect();
-            // parse start of range
-            let start: usize;
-            match range[0].parse::<usize>() {
-                Ok(n) => start = n,
-                Err(e) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' has {}",
-                        range[0],
-                        e.to_string()
-                    ))
-                }
-            }
-
-            // parse end of range
-            let end: usize;
-            let t: ForceType;
-            let last = range[1].chars().last();
-            if range[1].len() < 2 {
-                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
-            }
-            let second_last = range[1].chars().nth(range[1].len() - 2);
-            // show if the lc is included in this part
-            let mut lc_flag = true;
-
-            match second_last {
-                Some('l') => {
-                    if let Some(lc) = lc {
-                        if lc == super::LineColumn::Column {
-                            return Err(format!(
-                                "'\x1b[1;31m{}\x1b[0m' can't use 'l' and 'c' at the same time",
-                                part
-                            ));
-                        }
-                    } else {
-                        lc = Some(super::LineColumn::Line);
+        let matches = regex_set.matches(part).into_iter().collect::<Vec<_>>();
+        if matches.is_empty() {
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some("There is more than one error in this part.".to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 0 {
+            match parse_range_force(part, s, (location, location + part.len()), linecolumn) {
+                Ok((range, lc, force_type)) => {
+                    linecolumn = Some(lc);
+                    for i in range.0..=range.1 {
+                        result.push((i, force_type));
                     }
                 }
-                Some('c') => {
-                    if let Some(lc) = lc {
-                        if lc == super::LineColumn::Line {
-                            return Err(format!(
-                                "'\x1b[1;31m{}\x1b[0m' can't use 'l' and 'c' at the same time",
-                                part
-                            ));
-                        }
-                    } else {
-                        lc = Some(super::LineColumn::Column);
-                    }
+                Err(e) => return Err(e),
+            }
+        } else if matches[0] == 1 {
+            match parse_single_force(part, s, (location, location + part.len()), linecolumn) {
+                Ok((start, lc, force_type)) => {
+                    linecolumn = Some(lc);
+                    result.push((start, force_type));
                 }
-                _ => lc_flag = false,
+                Err(e) => return Err(e),
             }
-
-            match last {
-                Some('s') => t = ForceType::S,
-                Some('i') => t = ForceType::I,
-                Some('f') => t = ForceType::F,
-                _ => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' should end with type 's', 'u', 'i' or 'f'",
-                        range[1]
-                    ))
-                }
-            }
-
-            let end_pos = if lc_flag && range[1].len() > 2 {
-                range[1].len() - 2
-            } else if range[1].len() > 1 {
-                range[1].len() - 1
-            } else {
-                return Err(format!(
-                    "'\x1b[1;31m{}\x1b[0m' lack of end number for range",
-                    range[1]
-                ));
-            };
-            match range[1][..end_pos].parse::<usize>() {
-                Ok(n) => end = n,
-                Err(e) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' has {}",
-                        range[1],
-                        e.to_string()
-                    ))
-                }
-            }
-
-            if start > end {
-                return Err(format!(
-                    "Start of range (\x1b[1;31m{}\x1b[0m) should be less than end (\x1b[1;31m{}\x1b[0m)",
-                    start,
-                    end,
-                ));
-            }
-            for i in start..=end {
-                result.push((i, t));
-            }
-        } else {
-            // part is a number
-            let num: usize;
-            let t: ForceType;
-            let last = part.chars().last();
-            if part.len() < 2 {
-                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
-            }
-            let second_last = part.chars().nth(part.len() - 2);
-            let mut lc_flag = true;
-
-            match second_last {
-                Some('l') => {
-                    if let Some(lc) = lc {
-                        if lc == super::LineColumn::Column {
-                            return Err(format!(
-                                "'\x1b[1;31m{}\x1b[0m' can't use 'l' and 'c' at the same time",
-                                part
-                            ));
-                        }
-                    } else {
-                        lc = Some(super::LineColumn::Line);
-                    }
-                }
-                Some('c') => {
-                    if let Some(lc) = lc {
-                        if lc == super::LineColumn::Line {
-                            return Err(format!(
-                                "'\x1b[1;31m{}\x1b[0m' can't use 'l' and 'c' at the same time",
-                                part
-                            ));
-                        }
-                    } else {
-                        lc = Some(super::LineColumn::Column);
-                    }
-                }
-                _ => lc_flag = false,
-            }
-
-            match last {
-                Some('s') => t = ForceType::S,
-                Some('i') => t = ForceType::I,
-                Some('f') => t = ForceType::F,
-                _ => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' should end with type 's', 'u', 'i' or 'f'",
-                        part
-                    ))
-                }
-            }
-
-            let end_pos = if lc_flag && part.len() > 2 {
-                part.len() - 2
-            } else if part.len() > 1 {
-                part.len() - 1
-            } else {
-                return Err(format!(
-                    "'\x1b[1;31m{}\x1b[0m' lack of number for range",
-                    part
-                ));
-            };
-
-            match part[..end_pos].parse::<usize>() {
-                Ok(n) => num = n,
-                Err(e) => return Err(format!("'\x1b[1;31m{}\x1b[0m' has {}", part, e.to_string())),
-            }
-
-            // put the result to vec
-            result.push((num, t));
-        }
-    }
-    // sort the lines and columns by number
-    result.sort_by(|a, b| a.0.cmp(&b.0));
-
-    // check conflicts
-    for i in 0..result.len() - 1 {
-        if result[i].0 == result[i + 1].0 {
-            return Err(format!(
-                "Conflict between '\x1b[1;31m{}\x1b[0m' and '\x1b[1;31m{}\x1b[0m'",
-                result[i].0,
-                result[i + 1].0
+        } else if matches[0] == 2 {
+            let range_error = RangeError::new(
+                RangeErrorKind::RightSideError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 3 {
+            let range_error = RangeError::new(
+                RangeErrorKind::LeftSideError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 4 {
+            let range_error = RangeError::new(
+                RangeErrorKind::BothSidesError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 5 {
+            let range_error = RangeError::new(
+                RangeErrorKind::SingleNumberError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 6 || matches[0] == 7 {
+            let keyword_missing = KeywordMissing::new(
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                "type".to_string(),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(keyword_missing.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 8 || matches[0] == 9 {
+            let keyword_missing = KeywordMissing::new(
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                "line or column".to_string(),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(keyword_missing.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
             ));
         }
+        location += part.len() + 1;
     }
-
-    if let Some(lc) = lc {
-        Ok((result, lc))
+    if let Some(linecolumn) = linecolumn {
+        Ok((result, linecolumn))
     } else {
-        Err("No line or column specified".to_string())
+        Err(ArgError::new(
+            ArgErrorKind::WrongFormat,
+            Some("The line or column is missing.".to_string()),
+            Some(s.to_string()),
+            Some(s.to_string()),
+            Some((0, s.len())),
+            None,
+        ))
     }
 }
 
-fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), String> {
-    let parts = s.split(',');
-    let mut line: Vec<usize> = Vec::new();
-    let mut column: Vec<usize> = Vec::new();
-    for part in parts {
-        // if part is a range
-        if part.contains('-') {
-            let range = part.split('-').collect::<Vec<&str>>();
-            // parse start of range
-            let start: usize;
-            match range[0].parse::<usize>() {
-                Ok(n) => start = n,
-                Err(e) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' has {}",
-                        range[0],
-                        e.to_string()
-                    ))
-                }
-            }
-
-            // parse end of range
-            let end: usize;
-            let is_line: bool;
-            if range[1].len() <= 1 {
-                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
-            }
-            let last = range[1].chars().last();
-
-            match last {
-                Some('l') => is_line = true,
-                Some('c') => is_line = false,
-                Some(_) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
-                        range[1]
-                    ))
-                }
-                None => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
-                        range[1]
-                    ))
-                }
-            }
-
-            match range[1][..range[1].len() - 1].parse::<usize>() {
-                Ok(n) => end = n,
-                Err(e) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' has {}",
-                        range[1],
-                        e.to_string()
-                    ))
-                }
-            }
-
-            if start > end {
-                return Err(format!(
-                    "Start of range (\x1b[1;31m{}\x1b[0m) should be less than end (\x1b[1;31m{}\x1b[0m)",
-                    start,
-                    end,
-                ));
-            }
-            for i in start..=end {
-                if is_line {
-                    line.push(i);
-                } else {
-                    column.push(i);
-                }
-            }
-        } else {
-            // part is a number
-            let num: usize;
-            let is_line: bool;
-            if part.len() <= 1 {
-                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
-            }
-            let last = part.chars().last();
-            match last {
-                Some('l') => is_line = true,
-                Some('c') => is_line = false,
-                Some(_) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
-                        part
-                    ))
-                }
-                None => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
-                        part
-                    ))
-                }
-            }
-
-            match part[..part.len() - 1].parse::<usize>() {
-                Ok(n) => num = n,
-                Err(e) => return Err(format!("'\x1b[1;31m{}\x1b[0m' has {}", part, e.to_string())),
-            }
-
-            // put the result to vec
-            if is_line {
-                line.push(num);
-            } else {
-                column.push(num);
-            }
-        }
+fn parse_single_force(
+    part: &str,
+    whole_arg: &str,
+    location: (usize, usize),
+    linecolumn: Option<LineColumn>,
+) -> Result<(usize, LineColumn, ForceType), ArgError> {
+    static RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^(?<start>[0-9]+)(?<lc>[lcLC])(?<type>[sifSIF])$").unwrap());
+    let caps = RE.captures(part).unwrap();
+    let start = caps["start"].parse::<usize>().unwrap();
+    let lc = LineColumn::from_str(&caps["lc"]).unwrap();
+    let force_type = ForceType::from_str(&caps["type"]).unwrap();
+    if Some(lc) != linecolumn {
+        let conflict = Conflicts::new(
+            ErrorLevel::Error,
+            Some(part.to_string()),
+            Some(whole_arg.to_string()),
+            Some(location),
+            Some(vec!['l'.to_string(), 'c'.to_string()]),
+        );
+        Err(ArgError::new(
+            ArgErrorKind::WrongFormat,
+            Some(conflict.message(ErrorLevel::Warning)),
+            Some(part.to_string()),
+            Some(whole_arg.to_string()),
+            Some(location),
+            None,
+        ))
+    } else {
+        Ok((start, lc, force_type))
     }
-    // sort the lines and columns by number
-    line.sort();
-    column.sort();
+}
 
-    Ok((line, column))
+fn parse_range_force(
+    part: &str,
+    whole_arg: &str,
+    location: (usize, usize),
+    linecolumn: Option<LineColumn>,
+) -> Result<((usize, usize), LineColumn, ForceType), ArgError> {
+    static RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"^(?<start>[0-9]+)-(?<end>[0-9]+)(?<lc>[lcLC])(?<type>[sifSIF])$").unwrap()
+    });
+    let caps = RE.captures(part).unwrap();
+    let start = caps["start"].parse::<usize>().unwrap();
+    let end = caps["end"].parse::<usize>().unwrap();
+    let lc = LineColumn::from_str(&caps["lc"]).unwrap();
+    let force_type = ForceType::from_str(&caps["type"]).unwrap();
+    if Some(lc) != linecolumn {
+        let conflict = Conflicts::new(
+            ErrorLevel::Error,
+            Some(part.to_string()),
+            Some(whole_arg.to_string()),
+            Some(location),
+            Some(vec!['l'.to_string(), 'c'.to_string()]),
+        );
+        Err(ArgError::new(
+            ArgErrorKind::WrongFormat,
+            Some(conflict.message(ErrorLevel::Warning)),
+            Some(part.to_string()),
+            Some(whole_arg.to_string()),
+            Some(location),
+            None,
+        ))
+    } else {
+        Ok(((start, end), lc, force_type))
+    }
 }
