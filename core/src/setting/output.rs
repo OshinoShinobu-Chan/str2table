@@ -274,8 +274,8 @@ fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), ArgErro
             ));
         } else if matches[0] == 6 || matches[0] == 7 {
             let keyword_missing = KeywordMissing::new(
-                Some("line/column".to_string()),
-                Some("export_subtable".to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
                 Some((location, location + part.len())),
                 "line or column".to_string(),
             );
@@ -420,8 +420,8 @@ fn validate_export_color(
             ));
         } else if matches[0] == 6 || matches[0] == 7 {
             let keyword_missing = KeywordMissing::new(
-                Some("line/column".to_string()),
-                Some("export_color".to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
                 Some((location, location + part.len())),
                 "line or column".to_string(),
             );
@@ -435,8 +435,8 @@ fn validate_export_color(
             ));
         } else if matches[0] == 8 {
             let keyword_missing = KeywordMissing::new(
-                Some("color".to_string()),
-                Some("export_color".to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
                 Some((location, location + part.len())),
                 "color".to_string(),
             );
