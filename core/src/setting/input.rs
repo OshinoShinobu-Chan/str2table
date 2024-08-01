@@ -275,7 +275,7 @@ fn parse_single_force(
     let start = caps["start"].parse::<usize>().unwrap();
     let lc = LineColumn::from_str(&caps["lc"]).unwrap();
     let force_type = ForceType::from_str(&caps["type"]).unwrap();
-    if Some(lc) != linecolumn {
+    if Some(lc) != linecolumn && linecolumn.is_some() {
         let conflict = Conflicts::new(
             ErrorLevel::Error,
             Some(part.to_string()),
@@ -310,7 +310,7 @@ fn parse_range_force(
     let end = caps["end"].parse::<usize>().unwrap();
     let lc = LineColumn::from_str(&caps["lc"]).unwrap();
     let force_type = ForceType::from_str(&caps["type"]).unwrap();
-    if Some(lc) != linecolumn {
+    if Some(lc) != linecolumn && linecolumn.is_some() {
         let conflict = Conflicts::new(
             ErrorLevel::Error,
             Some(part.to_string()),
