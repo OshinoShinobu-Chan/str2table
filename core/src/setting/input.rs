@@ -362,3 +362,157 @@ fn parse_range_force(
         Ok(((start, end), lc, force_type))
     }
 }
+
+/* ---------------------------------- test ---------------------------------- */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_force_parse() {
+        let true_res = (
+            vec![
+                (1, ForceType::S),
+                (2, ForceType::S),
+                (3, ForceType::S),
+                (7, ForceType::I),
+                (9, ForceType::F),
+                (10, ForceType::F),
+                (11, ForceType::F),
+            ],
+            super::super::LineColumn::Line,
+        );
+        // normal case
+        let result = validate_force_parse("1-3ls,7li,9-11lf").unwrap();
+        assert_eq!(result, true_res);
+
+        // upper and lower case
+        let result = validate_force_parse("1-3LS,7Li,9-11lF").unwrap();
+        assert_eq!(result, true_res);
+
+        // different order
+        let result = validate_force_parse("9-11lf,7li,1-3ls").unwrap();
+        assert_eq!(result, true_res);
+
+        // invalid range (as a FEATURE)
+        let result = validate_force_parse("1-3ls,20-10ls,9-11lf,7li").unwrap();
+        assert_eq!(result, true_res);
+
+        let lc_missing = KeywordMissing::new(None, None, None, "line or column".to_string());
+
+        // lc not specified
+        let result = validate_force_parse("1-3s,7i,9-11f");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // missing lc
+        let result = validate_force_parse("1-3ls,7li,9-11f");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // lc conflict
+        let result = validate_force_parse("1-3ls,7ci,9-11lf");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let lc_conflict = Conflicts::new(
+            ErrorLevel::Error,
+            None,
+            None,
+            None,
+            Some(vec!['l'.to_string(), 'c'.to_string()]),
+        );
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_conflict.reason().unwrap().as_str()));
+
+        // range conflict
+        let result = validate_force_parse("1-3ls,7li,9-11lf,5-7lf");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let range_conflict = Conflicts::new(
+            ErrorLevel::Error,
+            None,
+            None,
+            None,
+            Some(vec!["(7, I)".to_string(), "(7, F)".to_string()]),
+        );
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(range_conflict.reason().unwrap().as_str()));
+
+        // // invalid range
+        // let result = validate_force_parse("3-1ls,7li,11-9lf");
+        // assert!(result.is_err());
+        // println!(
+        //     "[test_validate_force_parse]: invalid range: {:?}",
+        //     result.unwrap_err()
+        // );
+
+        let invalid_type = KeywordMissing::new(None, None, None, "type".to_string());
+
+        // invalid type
+        let result = validate_force_parse("1-3ls,7li,9-11lg");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(invalid_type.describe().as_str()));
+
+        // missing type
+        let result = validate_force_parse("1-3ls,7li,9-11l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(invalid_type.describe().as_str()));
+
+        // missing number
+        let result = validate_force_parse("1-3ls,li,9-11lf");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::SingleNumberError.get_reason().as_str()));
+
+        // not a number
+        let result = validate_force_parse("1-3ls,7li,9-11lf,1a-3ls");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::LeftSideError.get_reason().as_str()));
+
+        // missing range end
+        let result = validate_force_parse("1-3ls,7li,9-lf");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::RightSideError.get_reason().as_str()));
+
+        // random string
+        let result = validate_force_parse("asdfghjkl");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains("There is more than one error in this part"));
+    }
+}
