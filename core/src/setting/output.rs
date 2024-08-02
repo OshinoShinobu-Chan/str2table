@@ -15,6 +15,7 @@
 use std::str::FromStr;
 
 use crate::error::arg_error::{ArgError, ArgErrorKind};
+use crate::error::conflicts::Conflicts;
 use crate::error::keyword_missing::KeywordMissing;
 use crate::error::range_error::{RangeError, RangeErrorKind};
 use crate::error::{ErrorLevel, ErrorType};
@@ -290,6 +291,10 @@ fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), ArgErro
         }
         location += part.len();
     }
+    lines.sort();
+    lines.dedup();
+    columns.sort();
+    columns.dedup();
     Ok((lines, columns))
 }
 
@@ -451,7 +456,42 @@ fn validate_export_color(
         }
         location += part.len();
     }
+
+    let lines = post_process_color(s, lines)?;
+    let columns = post_process_color(s, columns)?;
     Ok((lines, columns))
+}
+
+fn post_process_color(
+    s: &str,
+    mut result: Vec<(usize, OutputColor)>,
+) -> Result<Vec<(usize, OutputColor)>, ArgError> {
+    result.sort_by(|a, b| a.0.cmp(&b.0));
+    result.dedup();
+    assert_ne!(result.len(), 0);
+    for i in 0..result.len() - 1 {
+        if result[i].0 == result[i + 1].0 {
+            let conflict = Conflicts::new(
+                ErrorLevel::Error,
+                Some(s.to_string()),
+                Some(s.to_string()),
+                None,
+                Some(vec![
+                    format!("{:?}", result[i]),
+                    format!("{:?}", result[i + 1]),
+                ]),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::Conflicts,
+                Some(conflict.message(ErrorLevel::Warning)),
+                Some(s.to_string()),
+                Some(s.to_string()),
+                None,
+                Some("Please check the reason".to_string()),
+            ));
+        }
+    }
+    Ok(result)
 }
 
 fn parse_range_subtable(s: &str) -> ((usize, usize), LineColumn) {

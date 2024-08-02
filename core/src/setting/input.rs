@@ -250,16 +250,48 @@ fn validate_force_parse(s: &str) -> Result<(Vec<(usize, ForceType)>, super::Line
         location += part.len() + 1;
     }
     if let Some(linecolumn) = linecolumn {
+        //sort and unique
+        result.sort_by(|a, b| a.0.cmp(&b.0));
+        result.dedup();
+        assert_ne!(result.len(), 0);
+        for i in 0..(result.len() - 1) {
+            if result[i].0 == result[i + 1].0 {
+                let conflict = Conflicts::new(
+                    ErrorLevel::Error,
+                    Some(s.to_string()),
+                    Some(s.to_string()),
+                    None,
+                    Some(vec![
+                        format!("{:?}", result[i]),
+                        format!("{:?}", result[i + 1]),
+                    ]),
+                );
+                return Err(ArgError::new(
+                    ArgErrorKind::Conflicts,
+                    Some(conflict.message(ErrorLevel::Warning)),
+                    Some(s.to_string()),
+                    Some(s.to_string()),
+                    None,
+                    Some("Please check the reason.".to_string()),
+                ));
+            }
+        }
         Ok((result, linecolumn))
     } else {
-        Err(ArgError::new(
-            ArgErrorKind::WrongFormat,
-            Some("The line or column is missing.".to_string()),
+        let keyword_missing = KeywordMissing::new(
             Some(s.to_string()),
             Some(s.to_string()),
-            Some((0, s.len())),
             None,
-        ))
+            "line or column".to_string(),
+        );
+        return Err(ArgError::new(
+            ArgErrorKind::WrongFormat,
+            Some(keyword_missing.message(ErrorLevel::Warning).to_string()),
+            Some(s.to_string()),
+            Some(s.to_string()),
+            None,
+            None,
+        ));
     }
 }
 
