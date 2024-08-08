@@ -12,8 +12,18 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::str::FromStr;
+
+use crate::error::arg_error::{ArgError, ArgErrorKind};
+use crate::error::conflicts::Conflicts;
+use crate::error::keyword_missing::KeywordMissing;
+use crate::error::range_error::{RangeError, RangeErrorKind};
+use crate::error::{ErrorLevel, ErrorType};
+use crate::setting::LineColumn;
 use clap::Parser;
 use clap::*;
+use once_cell::sync::Lazy;
+use regex::{Regex, RegexSet};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// A enum to specify the output format,
@@ -34,6 +44,21 @@ pub enum OutputColor {
     Yellow,
     Grey,
     White,
+}
+
+impl FromStr for OutputColor {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "r" | "R" => Ok(OutputColor::Red),
+            "g" | "G" => Ok(OutputColor::Green),
+            "b" | "B" => Ok(OutputColor::Blue),
+            "y" | "Y" => Ok(OutputColor::Yellow),
+            "x" | "X" => Ok(OutputColor::Grey),
+            "w" | "W" => Ok(OutputColor::White),
+            _ => Err(()),
+        }
+    }
 }
 
 impl std::fmt::Display for OutputColor {
@@ -80,7 +105,13 @@ pub struct OutputSettings {
 
     #[arg(short = 'C', long, value_parser = validate_export_color)]
     /// Set the color of the table by line, enable when export mode is console
+    /// ((line, color), (column, color))
     pub export_color: Option<(Vec<(usize, OutputColor)>, Vec<(usize, OutputColor)>)>,
+
+    #[arg(short = 'S', long, value_parser = validate_export_subtable)]
+    /// Use a number or range end with `l/c` to specify the line or column
+    /// Export the subtable of the cross parts of the lines and columns
+    pub export_subtable: Option<(Vec<usize>, Vec<usize>)>,
 }
 
 impl Default for OutputSettings {
@@ -88,11 +119,12 @@ impl Default for OutputSettings {
         OutputSettings {
             output: None,
             export_color: None,
+            export_subtable: None,
         }
     }
 }
 
-fn validate_output(s: &str) -> Result<(String, OutputFormat), String> {
+fn validate_output(s: &str) -> Result<(String, OutputFormat), ArgError> {
     // Get the file format from suffix
     let parts: Vec<&str> = s.split('.').collect();
     let format = match parts[parts.len() - 1] {
@@ -100,9 +132,13 @@ fn validate_output(s: &str) -> Result<(String, OutputFormat), String> {
         "txt" => OutputFormat::Txt,
         "xls" | "xlsx" => OutputFormat::Exls,
         _ => {
-            return Err(format!(
-                "Unsupported file format '\x1b[1;31m{}\x1b[0m'",
-                parts[parts.len() - 1]
+            return Err(ArgError::new(
+                ArgErrorKind::FormatError,
+                Some("The format of the file is not supported.".to_string()),
+                Some(parts[parts.len() - 1].to_string()),
+                Some(s.to_string()),
+                None,
+                None,
             ))
         }
     };
@@ -110,160 +146,604 @@ fn validate_output(s: &str) -> Result<(String, OutputFormat), String> {
     Ok((s.to_string(), format))
 }
 
+fn validate_export_subtable(s: &str) -> Result<(Vec<usize>, Vec<usize>), ArgError> {
+    // regex to check if input is valid
+    let regex_set = RegexSet::new(&[
+        // 0. correct range
+        r"^[0-9]+-[0-9]+[lcLC]$",
+        // 1. correct single
+        r"^[0-9]+[lcLC]$",
+        // 2. wrong format in left side of range
+        r"^.*-[0-9]+[lcLC]$",
+        // 3. wrong format in right side of range
+        r"^[0-9]+-.*[lcLC]$",
+        // 4. wrong format in both sides of range
+        r"^.*-.*[lcLC]$",
+        // 5. wrong format in single
+        r"^.*[lcLC]$",
+        // 6. wrong format in line/column (range)
+        r"^[0-9]+-[0-9]+.*$",
+        // 7. wrong format in line/column (single)
+        r"^[0-9]+.*$",
+    ])
+    .unwrap();
+
+    let mut lines: Vec<usize> = Vec::new();
+    let mut columns: Vec<usize> = Vec::new();
+
+    // split the target string into parts
+    let parts = s.split(',');
+
+    // track the location of the part
+    let mut location = 0;
+
+    // iterate through the parts
+    for part in parts {
+        let matches = regex_set.matches(part).into_iter().collect::<Vec<_>>();
+        if matches.is_empty() {
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some("There is more than one error in this part".to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 0 {
+            let ((start, end), lc) = parse_range_subtable(part);
+            match lc {
+                LineColumn::Line => {
+                    for i in start..=end {
+                        lines.push(i);
+                    }
+                }
+                LineColumn::Column => {
+                    for i in start..=end {
+                        columns.push(i);
+                    }
+                }
+            }
+        } else if matches[0] == 1 {
+            let (num, lc) = parse_single_subtable(part);
+            match lc {
+                LineColumn::Line => {
+                    lines.push(num);
+                }
+                LineColumn::Column => {
+                    columns.push(num);
+                }
+            }
+        } else if matches[0] == 2 {
+            let range_error = RangeError::new(
+                RangeErrorKind::LeftSideError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 3 {
+            let range_error = RangeError::new(
+                RangeErrorKind::RightSideError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 4 {
+            let range_error = RangeError::new(
+                RangeErrorKind::BothSidesError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 5 {
+            let range_error = RangeError::new(
+                RangeErrorKind::SingleNumberError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 6 || matches[0] == 7 {
+            let keyword_missing = KeywordMissing::new(
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                "line or column".to_string(),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(keyword_missing.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        }
+        location += part.len();
+    }
+    lines.sort();
+    lines.dedup();
+    columns.sort();
+    columns.dedup();
+    Ok((lines, columns))
+}
+
 fn validate_export_color(
     s: &str,
-) -> Result<(Vec<(usize, OutputColor)>, Vec<(usize, OutputColor)>), String> {
+) -> Result<(Vec<(usize, OutputColor)>, Vec<(usize, OutputColor)>), ArgError> {
+    let regex_set = RegexSet::new(&[
+        // 0. correct range
+        r"^[0-9]+-[0-9]+[rgbyxwRGYBXW][lcLC]$",
+        // 1. correct single
+        r"^[0-9]+[rgbyxwRGYBXW][lcLC]$",
+        // 2. wrong format in left side of range
+        r"^.*-[0-9]+[rgbyxwRGYBXW][lcLC]$",
+        // 3. wrong format in right side of range
+        r"^[0-9]+-.*[rgbyxwRGYBXW][lcLC]$",
+        // 4. wrong format in both sides of range
+        r"^.*-.*[rgbyxwRGYBXW][lcLC]$",
+        // 5. wrong format in single
+        r"^.*[rgbyxwRGYBXW][lcLC]$",
+        // 6. wrong format in line/column (range)
+        r"^[0-9]+-[0-9]+[rgbyxwRGBYXW].*$",
+        // 7. wrong format in line/column (single)
+        r"^[0-9]+[rgbyxwRGBYXW].*$",
+        // 8. wrong format in color (range)
+        r"^[0-9]+-[0-9]+.*[lcLC]$",
+        // 9. wrong format in color (single)
+        r"^[0-9]+.*[lcLC]$",
+    ])
+    .unwrap();
+    let mut lines: Vec<(usize, OutputColor)> = Vec::new();
+    let mut columns: Vec<(usize, OutputColor)> = Vec::new();
+
     let parts = s.split(',');
-    let mut line: Vec<(usize, OutputColor)> = Vec::new();
-    let mut column: Vec<(usize, OutputColor)> = Vec::new();
+    let mut location = 0;
+
     for part in parts {
-        // if part is a range
-        if part.contains('-') {
-            let range = part.split('-').collect::<Vec<&str>>();
-            // parse start of range
-            let start: usize;
-            match range[0].parse::<usize>() {
-                Ok(n) => start = n,
-                Err(e) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' has {}",
-                        range[0],
-                        e.to_string()
-                    ))
+        let matches = regex_set.matches(part).into_iter().collect::<Vec<_>>();
+        if matches.is_empty() {
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some("There is more than one error in this part".to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 0 {
+            let ((start, end), color, lc) = parse_range_color(part);
+            match lc {
+                LineColumn::Line => {
+                    for i in start..=end {
+                        lines.push((i, color));
+                    }
+                }
+                LineColumn::Column => {
+                    for i in start..=end {
+                        columns.push((i, color));
+                    }
                 }
             }
-
-            // parse end of range
-            let end: usize;
-            let color: OutputColor;
-
-            if range[1].len() <= 2 {
-                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
-            }
-
-            let last = range[1].chars().last();
-            let second_last = range[1].chars().nth(range[1].len() - 2);
-            let is_line: bool;
-
-            match second_last {
-                Some('l') => is_line = true,
-                Some('c') => is_line = false,
-                Some(_) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
-                        range[1]
-                    ))
+        } else if matches[0] == 1 {
+            let (num, color, lc) = parse_single_color(part);
+            match lc {
+                LineColumn::Line => {
+                    lines.push((num, color));
                 }
-                None => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
-                        range[1]
-                    ))
+                LineColumn::Column => {
+                    columns.push((num, color));
                 }
             }
+        } else if matches[0] == 2 {
+            let range_error = RangeError::new(
+                RangeErrorKind::LeftSideError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 3 {
+            let range_error = RangeError::new(
+                RangeErrorKind::RightSideError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 4 {
+            let range_error = RangeError::new(
+                RangeErrorKind::BothSidesError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 5 {
+            let range_error = RangeError::new(
+                RangeErrorKind::SingleNumberError,
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(range_error.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 6 || matches[0] == 7 {
+            let keyword_missing = KeywordMissing::new(
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                "line or column".to_string(),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(keyword_missing.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        } else if matches[0] == 8 || matches[0] == 9 {
+            let keyword_missing = KeywordMissing::new(
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                "color".to_string(),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::WrongFormat,
+                Some(keyword_missing.message(ErrorLevel::Warning).to_string()),
+                Some(part.to_string()),
+                Some(s.to_string()),
+                Some((location, location + part.len())),
+                None,
+            ));
+        }
+        location += part.len();
+    }
 
-            match last {
-                Some('r') => color = OutputColor::Red,
-                Some('g') => color = OutputColor::Green,
-                Some('b') => color = OutputColor::Blue,
-                Some('y') => color = OutputColor::Yellow,
-                Some('x') => color = OutputColor::Grey,
-                Some('w') => color = OutputColor::White,
-                _ => {
-                    return Err(format!(
-                    "'\x1b[1;31m{}\x1b[0m' should end with color 'r', 'g', 'b', 'y', 'x' or 'w'",
-                    range[1]
-                ))
-                }
-            }
+    let lines = post_process_color(s, lines)?;
+    let columns = post_process_color(s, columns)?;
+    Ok((lines, columns))
+}
 
-            match range[1][..range[1].len() - 2].parse::<usize>() {
-                Ok(n) => end = n,
-                Err(e) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' has {}",
-                        range[1],
-                        e.to_string()
-                    ))
-                }
-            }
-
-            if start > end {
-                return Err(format!(
-                    "Start of range (\x1b[1;31m{}\x1b[0m) should be less than end (\x1b[1;31m{}\x1b[0m)",
-                    start,
-                    end,
-                ));
-            }
-
-            // put the result to vec
-            if is_line {
-                for i in start..=end {
-                    line.push((i, color));
-                }
-            } else {
-                for i in start..=end {
-                    column.push((i, color));
-                }
-            }
-        } else {
-            // part is a number
-            let num: usize;
-            let color: OutputColor;
-            if part.len() <= 2 {
-                return Err(format!("'\x1b[1;31m{}\x1b[0m' invalid format", part));
-            }
-            let last = part.chars().last();
-            let second_last = part.chars().nth(part.len() - 2);
-            let is_line: bool;
-
-            match second_last {
-                Some('l') => is_line = true,
-                Some('c') => is_line = false,
-                Some(_) => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' should end with 'l' or 'c'",
-                        part
-                    ))
-                }
-                None => {
-                    return Err(format!(
-                        "'\x1b[1;31m{}\x1b[0m' lack of 'l' or 'c' to specify line or column",
-                        part
-                    ))
-                }
-            }
-
-            match last {
-                Some('r') => color = OutputColor::Red,
-                Some('g') => color = OutputColor::Green,
-                Some('b') => color = OutputColor::Blue,
-                Some('y') => color = OutputColor::Yellow,
-                Some('x') => color = OutputColor::Grey,
-                Some('w') => color = OutputColor::White,
-                _ => {
-                    return Err(format!(
-                    "'\x1b[1;31m{}\x1b[0m' should end with color 'r', 'g', 'b', 'y', 'x' or 'w'",
-                    part
-                ))
-                }
-            }
-
-            match part[..part.len() - 2].parse::<usize>() {
-                Ok(n) => num = n,
-                Err(e) => return Err(format!("'\x1b[1;31m{}\x1b[0m' has {}", part, e.to_string())),
-            }
-
-            // put the result to vec
-            if is_line {
-                line.push((num, color));
-            } else {
-                column.push((num, color));
-            }
+fn post_process_color(
+    s: &str,
+    mut result: Vec<(usize, OutputColor)>,
+) -> Result<Vec<(usize, OutputColor)>, ArgError> {
+    result.sort_by(|a, b| a.0.cmp(&b.0));
+    result.dedup();
+    assert_ne!(result.len(), 0);
+    for i in 0..result.len() - 1 {
+        if result[i].0 == result[i + 1].0 {
+            let conflict = Conflicts::new(
+                ErrorLevel::Error,
+                Some(s.to_string()),
+                Some(s.to_string()),
+                None,
+                Some(vec![
+                    format!("{:?}", result[i]),
+                    format!("{:?}", result[i + 1]),
+                ]),
+            );
+            return Err(ArgError::new(
+                ArgErrorKind::Conflicts,
+                Some(conflict.message(ErrorLevel::Warning)),
+                Some(s.to_string()),
+                Some(s.to_string()),
+                None,
+                Some("Please check the reason".to_string()),
+            ));
         }
     }
-    // sort the lines and columns by number
-    line.sort_by(|a, b| a.0.cmp(&b.0));
-    column.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok((line, column))
+    Ok(result)
+}
+
+fn parse_range_subtable(s: &str) -> ((usize, usize), LineColumn) {
+    static RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?<start>[0-9]+)-(?<end>[0-9]+)(?<lc>[lcLC])").unwrap());
+    let caps = RE.captures(s).unwrap();
+    let start = caps["start"].parse::<usize>().unwrap();
+    let end = caps["end"].parse::<usize>().unwrap();
+    let lc = LineColumn::from_str(&caps["lc"]).unwrap();
+    ((start, end), lc)
+}
+
+fn parse_single_subtable(s: &str) -> (usize, LineColumn) {
+    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?<num>[0-9]+)(?<lc>[lcLC])").unwrap());
+    let caps = RE.captures(s).unwrap();
+    let num = caps["num"].parse::<usize>().unwrap();
+    let lc = LineColumn::from_str(&caps["lc"]).unwrap();
+    (num, lc)
+}
+
+fn parse_range_color(s: &str) -> ((usize, usize), OutputColor, LineColumn) {
+    static RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?<start>[0-9]+)-(?<end>[0-9]+)(?<color>[rgbyxwRGYBXW])(?<lc>[lcLC])").unwrap()
+    });
+    let caps = RE.captures(s).unwrap();
+    let start = caps["start"].parse::<usize>().unwrap();
+    let end = caps["end"].parse::<usize>().unwrap();
+    let color = OutputColor::from_str(&caps["color"]).unwrap();
+    let lc = LineColumn::from_str(&caps["lc"]).unwrap();
+    ((start, end), color, lc)
+}
+
+fn parse_single_color(s: &str) -> (usize, OutputColor, LineColumn) {
+    static RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?<num>[0-9]+)(?<color>[rgbyxwRGYBXW])(?<lc>[lcLC])").unwrap());
+    let caps = RE.captures(s).unwrap();
+    let num = caps["num"].parse::<usize>().unwrap();
+    let color = OutputColor::from_str(&caps["color"]).unwrap();
+    let lc = LineColumn::from_str(&caps["lc"]).unwrap();
+    (num, color, lc)
+}
+
+/* ---------------------------------- test ---------------------------------- */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_export_subtable() {
+        let true_res = (vec![1, 2, 3, 5], vec![2, 3, 4]);
+
+        // normal input
+        let result = validate_export_subtable("1-3l,2-4c,5l").unwrap();
+        assert_eq!(result, true_res);
+
+        // upper and lower case
+        let result = validate_export_subtable("1-3L,2-4C,5l").unwrap();
+        assert_eq!(result, true_res);
+
+        // duplicate range, different order
+        let result = validate_export_subtable("5l,2-4c,1-2l,1-3l,3-4c").unwrap();
+        assert_eq!(result, true_res);
+
+        // invalid range (as a FEATURE)
+        let result = validate_export_subtable("1-3l,2-4c,5l,3-2l").unwrap();
+        assert_eq!(result, true_res);
+
+        // line only
+        let result = validate_export_subtable("1-3l,5l").unwrap();
+        assert_eq!(result, (vec![1, 2, 3, 5], vec![]));
+
+        let lc_missing = KeywordMissing::new(None, None, None, "line or column".to_string());
+
+        // lc not specified
+        let result = validate_export_subtable("1-3,2-4c,5l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // invalid lc
+        let result = validate_export_subtable("1-3l,2-4g,5l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // missing number
+        let result = validate_export_subtable("1-3l,2-4c,l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::SingleNumberError.get_reason().as_str()));
+
+        // not a number
+        let result = validate_export_subtable("1a-3l,2-4c,5l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::LeftSideError.get_reason().as_str()));
+
+        // missing range end
+        let result = validate_export_subtable("1-3l,2-4c,5-l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::RightSideError.get_reason().as_str()));
+
+        // random string
+        let result = validate_export_subtable("MysticLightQuest");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains("There is more than one error in this part"));
+    }
+
+    #[test]
+    fn test_validate_export_color() {
+        let true_res = (
+            vec![
+                (1, OutputColor::Red),
+                (3, OutputColor::Green),
+                (5, OutputColor::Blue),
+            ],
+            vec![
+                (2, OutputColor::Yellow),
+                (3, OutputColor::Yellow),
+                (4, OutputColor::Yellow),
+            ],
+        );
+
+        // normal input
+        let result = validate_export_color("1rl,3gl,5bl,2-4yc").unwrap();
+        assert_eq!(result, true_res);
+
+        // upper and lower case
+        let result = validate_export_color("1Rl,3gL,5Bl,2-4yC").unwrap();
+        assert_eq!(result, true_res);
+
+        // duplicate range, different order
+        let result = validate_export_color("5bl,2-4yc,1rl,3gl,3-4yc,5bl").unwrap();
+        assert_eq!(result, true_res);
+
+        // invalid range (as a FEATURE)
+        let result = validate_export_color("1rl,3gl,5bl,2-4yc,4-2yc,233-0gl").unwrap();
+        assert_eq!(result, true_res);
+
+        let lc_missing = KeywordMissing::new(None, None, None, "line or column".to_string());
+
+        // lc not specified
+        let result = validate_export_color("1r,3g,5b,2-4y");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // invalid lc
+        let result = validate_export_color("1rl,3gg,5bl,2-4yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // range conflict
+        let result = validate_export_color("1rl,3gl,5bl,2-4yc,3-4xc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let range_conflict = Conflicts::new(
+            ErrorLevel::Error,
+            None,
+            None,
+            None,
+            Some(vec!["(3, Yellow)".to_string(), "(3, Green)".to_string()]),
+        );
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(range_conflict.describe().as_str()));
+
+        let invalid_color = KeywordMissing::new(None, None, None, "color".to_string());
+
+        // invalid color
+        let result = validate_export_color("1ql,3gl,5bl,2-4yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(invalid_color.describe().as_str()));
+
+        // missing color
+        let result = validate_export_color("1rl,3gl,5bl,2-4c");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(invalid_color.describe().as_str()));
+
+        // missing number
+        let result = validate_export_color("1rl,3gl,5bl,yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::SingleNumberError.get_reason().as_str()));
+
+        // not a number
+        let result = validate_export_color("1rl,3gl,5bl,2a-4yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::LeftSideError.get_reason().as_str()));
+
+        // missing range end
+        let result = validate_export_color("1rl,3gl,5bl,2-yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::RightSideError.get_reason().as_str()));
+
+        // random string
+        let result = validate_export_color("MysteryAlwaysByMySide");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains("There is more than one error in this part"));
+    }
 }
