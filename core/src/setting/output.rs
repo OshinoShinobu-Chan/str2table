@@ -318,8 +318,10 @@ fn validate_export_color(
         r"^[0-9]+-[0-9]+[rgbyxwRGBYXW].*$",
         // 7. wrong format in line/column (single)
         r"^[0-9]+[rgbyxwRGBYXW].*$",
-        // 8. wrong format in color
+        // 8. wrong format in color (range)
         r"^[0-9]+-[0-9]+.*[lcLC]$",
+        // 9. wrong format in color (single)
+        r"^[0-9]+.*[lcLC]$",
     ])
     .unwrap();
     let mut lines: Vec<(usize, OutputColor)> = Vec::new();
@@ -438,7 +440,7 @@ fn validate_export_color(
                 Some((location, location + part.len())),
                 None,
             ));
-        } else if matches[0] == 8 {
+        } else if matches[0] == 8 || matches[0] == 9 {
             let keyword_missing = KeywordMissing::new(
                 Some(part.to_string()),
                 Some(s.to_string()),
@@ -532,4 +534,216 @@ fn parse_single_color(s: &str) -> (usize, OutputColor, LineColumn) {
     let color = OutputColor::from_str(&caps["color"]).unwrap();
     let lc = LineColumn::from_str(&caps["lc"]).unwrap();
     (num, color, lc)
+}
+
+/* ---------------------------------- test ---------------------------------- */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_export_subtable() {
+        let true_res = (vec![1, 2, 3, 5], vec![2, 3, 4]);
+
+        // normal input
+        let result = validate_export_subtable("1-3l,2-4c,5l").unwrap();
+        assert_eq!(result, true_res);
+
+        // upper and lower case
+        let result = validate_export_subtable("1-3L,2-4C,5l").unwrap();
+        assert_eq!(result, true_res);
+
+        // duplicate range, different order
+        let result = validate_export_subtable("5l,2-4c,1-2l,1-3l,3-4c").unwrap();
+        assert_eq!(result, true_res);
+
+        // invalid range (as a FEATURE)
+        let result = validate_export_subtable("1-3l,2-4c,5l,3-2l").unwrap();
+        assert_eq!(result, true_res);
+
+        // line only
+        let result = validate_export_subtable("1-3l,5l").unwrap();
+        assert_eq!(result, (vec![1, 2, 3, 5], vec![]));
+
+        let lc_missing = KeywordMissing::new(None, None, None, "line or column".to_string());
+
+        // lc not specified
+        let result = validate_export_subtable("1-3,2-4c,5l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // invalid lc
+        let result = validate_export_subtable("1-3l,2-4g,5l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // missing number
+        let result = validate_export_subtable("1-3l,2-4c,l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::SingleNumberError.get_reason().as_str()));
+
+        // not a number
+        let result = validate_export_subtable("1a-3l,2-4c,5l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::LeftSideError.get_reason().as_str()));
+
+        // missing range end
+        let result = validate_export_subtable("1-3l,2-4c,5-l");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::RightSideError.get_reason().as_str()));
+
+        // random string
+        let result = validate_export_subtable("MysticLightQuest");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains("There is more than one error in this part"));
+    }
+
+    #[test]
+    fn test_validate_export_color() {
+        let true_res = (
+            vec![
+                (1, OutputColor::Red),
+                (3, OutputColor::Green),
+                (5, OutputColor::Blue),
+            ],
+            vec![
+                (2, OutputColor::Yellow),
+                (3, OutputColor::Yellow),
+                (4, OutputColor::Yellow),
+            ],
+        );
+
+        // normal input
+        let result = validate_export_color("1rl,3gl,5bl,2-4yc").unwrap();
+        assert_eq!(result, true_res);
+
+        // upper and lower case
+        let result = validate_export_color("1Rl,3gL,5Bl,2-4yC").unwrap();
+        assert_eq!(result, true_res);
+
+        // duplicate range, different order
+        let result = validate_export_color("5bl,2-4yc,1rl,3gl,3-4yc,5bl").unwrap();
+        assert_eq!(result, true_res);
+
+        // invalid range (as a FEATURE)
+        let result = validate_export_color("1rl,3gl,5bl,2-4yc,4-2yc,233-0gl").unwrap();
+        assert_eq!(result, true_res);
+
+        let lc_missing = KeywordMissing::new(None, None, None, "line or column".to_string());
+
+        // lc not specified
+        let result = validate_export_color("1r,3g,5b,2-4y");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // invalid lc
+        let result = validate_export_color("1rl,3gg,5bl,2-4yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(lc_missing.describe().as_str()));
+
+        // range conflict
+        let result = validate_export_color("1rl,3gl,5bl,2-4yc,3-4xc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let range_conflict = Conflicts::new(
+            ErrorLevel::Error,
+            None,
+            None,
+            None,
+            Some(vec!["(3, Yellow)".to_string(), "(3, Green)".to_string()]),
+        );
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(range_conflict.describe().as_str()));
+
+        let invalid_color = KeywordMissing::new(None, None, None, "color".to_string());
+
+        // invalid color
+        let result = validate_export_color("1ql,3gl,5bl,2-4yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(invalid_color.describe().as_str()));
+
+        // missing color
+        let result = validate_export_color("1rl,3gl,5bl,2-4c");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(invalid_color.describe().as_str()));
+
+        // missing number
+        let result = validate_export_color("1rl,3gl,5bl,yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::SingleNumberError.get_reason().as_str()));
+
+        // not a number
+        let result = validate_export_color("1rl,3gl,5bl,2a-4yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::LeftSideError.get_reason().as_str()));
+
+        // missing range end
+        let result = validate_export_color("1rl,3gl,5bl,2-yc");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains(RangeErrorKind::RightSideError.get_reason().as_str()));
+
+        // random string
+        let result = validate_export_color("MysteryAlwaysByMySide");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error
+            .reason()
+            .unwrap()
+            .contains("There is more than one error in this part"));
+    }
 }
