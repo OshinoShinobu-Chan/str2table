@@ -12,6 +12,7 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
+pub mod error;
 pub mod export;
 pub mod setting;
 pub mod table;

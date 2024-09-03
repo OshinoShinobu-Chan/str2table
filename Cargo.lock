@@ -214,6 +214,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "ibig",
+ "once_cell",
+ "regex",
  "toml",
  "xlsxwriter",
 ]
